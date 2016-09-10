@@ -1,0 +1,63 @@
+---
+layout: post
+title: Three Blinding Perl Tips, See How They Execute
+date: 2009-09-17 21:50:25.000000000 -04:00
+type: post
+published: true
+status: publish
+categories:
+- '1'
+tags: []
+meta:
+  _edit_last: '9278756'
+author:
+  login: 2shortplanks
+  email: mark@twoshortplanks.com
+  display_name: 2shortplanks
+  first_name: Mark
+  last_name: Fowler
+---
+<p>I've got a lot of half written posts that I still need to complete, but I don't want to let this blog stagnate.  Quick! Time for an <a href="http://www.paulgraham.com/nthings.html">n things list</a> - Three random Perl things that I've been using a lot recently:</p>
+<h2>Default Prompts</h2>
+<p>If you install Term::ReadLine::Perl you can provide defaults for interactive prompts in your program</p>
+<p><code>
+<pre>my $term = Term::ReadLine-&gt;new('report');
+my $filename = $term-&gt;readline(
+   "file to write output to? ",
+   "$ENV{HOME}/report-".DateTime-&gt;now-&gt;ymd.".csv"
+);</pre>
+<p></code></p>
+<p>When this executes this code creates a line in your terminal that has a default value already filled in for you to edit:</p>
+<p><code>
+<pre>file to write output to? /Users/mark/report-2009-09-16.csv</pre>
+<p></code></p>
+<h2>Controlling Where lwp-request Sends Its Requests</h2>
+<p>The command line utility lwp-request, which is a handy Perl utility that ships with LWP that allows you to download webpages from the command line, can take proxy settings from the environment variables you pass to it.</p>
+<p><code>
+<pre>bash$ http_proxy=http://127.0.0.1 lwp-request http://www.mywebsite.com</pre>
+<p></code></p>
+<p>This is really useful for development:  You can set your test apache running on your local machine / virtual machine / dev box up to answer on the same virtual host name as your live domain and, via the proxy settings, have lwp-request send requests there rather than to the real live machine whose DNS the domain name points to.  This is also really useful for debugging reverse proxies in live - you can choose exactly which machine in your proxy chain to send to, bypassing the nginx / lighttpd / varnish front proxy machine and talking directly to the backend machine if you wish.</p>
+<h2>The "Just Show Me The Data" Incarnation for DBI</h2>
+<p>Most of the time I don't use DBI directly - I use an object relational mapper like DBIx-Class.  But sometimes I'll get handed a chunk of SQL from our DBA and I just want to write a wrapper script to run that SQL and do something simple with it.  DBI is very flexible, and the documentation talks at length about things like caching parsed queries, reading data in from the database row by row, efficency of data structures, etc, etc.  What it's not very clear about, however, is how to ignore all of that and just get all your data from executing some SQL in the easiest possible format to manipulate.</p>
+<p>The magic incarnation looks like this:</p>
+<p><code>
+<pre>    my $dbh = DBI-&gt;connect(
+      "DBI:mysql:hostname=127.0.0.1;database=foo",
+      $username, 
+      $password,
+      { RaiseError =&gt; 1 },
+    );
+
+    my $rows = $dbh-&gt;selectall_arrayref( &lt;&lt;'SQL',{ Slice =&gt; {} }, "flintstone");
+      SELECT *
+        FROM characters
+       WHERE last_name = ?
+    SQL</pre>
+<p></code></p>
+<p>This gives you a reference to an array, with each element in this array representing one row returned from the database as a hashref keyed by field name.  This is really easy to process:</p>
+<p><code>
+<pre>    foreach my $row (@{ $rows }) {
+      say " * $row-&gt;{first_name} $row-&gt;{last_name}";
+    }</pre>
+<p></code></p>
+<p>If there's any problem at all DBI will raise an exception, so you don't need to worry about writing lots of error checking code.</p>

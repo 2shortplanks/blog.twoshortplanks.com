@@ -1,0 +1,29 @@
+---
+layout: post
+title: Introducing XML::Easy
+date: 2009-11-02 20:53:28.000000000 -05:00
+type: post
+published: true
+status: publish
+categories:
+- '1'
+tags: []
+meta:
+  _edit_last: '9278756'
+author:
+  login: 2shortplanks
+  email: mark@twoshortplanks.com
+  display_name: 2shortplanks
+  first_name: Mark
+  last_name: Fowler
+---
+<p>Some days, you just want to parse XML document.</p>
+<p>However, the standard distribution of Perl doesn't ship with a bundled XML parser, traditionally instead requiring the user to install a module from CPAN.  This means there's no <em>standard</em> way to do this.  Instead there are several choices of parser, each with their advantages and disadvantages: There is, as we often say in Perl, more than one way to do it.  This is the first post in a series where I'm going to talk about <a href="http://search.cpan.org/dist/XML-Easy">XML::Easy</a>, a relatively new XML parsing module that deserves a little more publicising.</p>
+<p>But why another XML parsing library?  What's wrong with the others?  Well, a few things...</p>
+<p>One of the biggest problems with the most popular XML parsing modules like XML::LibXML and XML::Parser is that they rely on external C dependancies being installed on your system (libxml2 and expat respectively) so it can be hard to rely on them being installable on any old system.  Suppose you write some software that relies on these modules.  What exactly are you asking of the users of your software who have to install that module as a dependency?  You're asking them firstly to have a C compiler installed - something people using ActiveState Perl, basic web-host providers, or even Mac OS X users without dev tools do not have.  Even more than this you're often asking them to download and install (either by hand or via their package management system) the external C libraries that these modules rely on, and then know how to configure the C compiler to link to these.  Complicated! </p>
+<p>To solve this XML::Easy ships with a pure Perl XML parser neither requiring external libraries or a C compiler to install:  In a pinch you can simply copy the Perl modules into your library path and you're up and ready to go.  This means that this library can be relied on pretty much anywhere.</p>
+<p>The observant will point out that there are many existing pure Perl XML parsing libraries on CPAN.  They suffer from another problem: They're slow.  Perl runs not as native instructions but as interpreted bytecode executing on a virtual machine, which is a technical way of saying "in a way that makes lots of very simple operations slow."  This is why the boring details of XML parsing are normally handled in C space.</p>
+<p>Luckily, XML::Easy doesn't use its pure Perl parser unless it really has to.  It prefers to compile and install on those systems that do have a working C compiler its own C code for parsing XML.  Note that this C code, bound into the perl interpreter with fast XS, is wholly self contained and doesn't rely on external libraries.  All the user on a modern Linux system has to do to install the module is type <code>cpan XML::Easy</code> at the command prompt.  In this mode XML::Easy is fast:  In our tests it's at least as fast as XML::LibXML (which is to say, very fast indeed.)  This week I've been re-writing some code that used to use MkDoc::XML to use XML::Easy and the new code is 600 (yes, six hundred) times faster.</p>
+<p>This is great news for module authors who just want to do something simple with fast performance if they can get it, but don't want to have to worry about putting too much of a burden on their users.</p>
+<p>Of course, this would all be for naught if XML::Easy didn't do a good job of parsing XML - but it does.  The other big failing of the many so-called XML parsers for Perl is that they screw up the little but important things.  They miss part of the specification (sometimes even deliberately!) or they don't let you do things properly like handle unicode.  XML::Easy isn't like this: It follows the specification quite carefully (with the devotion I've come to expect from its author, my co-worker Zefram) and doesn't screw up unicode because it doesn't attempt to handle character encodings itself but embraces and works with Perl's own unicode handling.</p>
+<p>So by now, I'll have either sold you on the <em>idea</em> of XML::Easy or not, but I haven't really shown you how to use it. In the <a href="http://blog.twoshortplanks.com/2009/11/09/xmleasy-by-example/">next post</a> in this series I'm going to start talking about how you can use XML::Easy to parse XML and extract which bits you want.</p>

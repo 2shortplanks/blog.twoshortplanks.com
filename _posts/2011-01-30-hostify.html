@@ -1,0 +1,137 @@
+---
+layout: post
+title: A Rose By Any Other Name
+date: 2011-01-30 06:36:34.000000000 -05:00
+type: post
+published: true
+status: publish
+categories: []
+tags: []
+meta:
+  _edit_last: '9278756'
+  _wp_old_slug: '251'
+author:
+  login: 2shortplanks
+  email: mark@twoshortplanks.com
+  display_name: 2shortplanks
+  first_name: Mark
+  last_name: Fowler
+excerpt: "In this blog post I'm going to talk about writing a Perl script to automatically
+  change entries in my local /etc/hosts file, and I'll digress into brief discussions
+  on Net::DNS, how to edit files in place using Tie::File, and the sneaky -s switch
+  for dumb command line argument parsing.\r\n"
+---
+<p>In this blog post I'm going to talk about writing a Perl script to automatically change entries in my local /etc/hosts file, and I'll digress into brief discussions on Net::DNS, how to edit files in place using Tie::File, and the sneaky <code>-s</code> switch for dumb command line argument parsing.</p>
+<h2>The Problem I'm Trying to Solve</h2>
+<p>I'll just come out and say it:  I don't like using the default DNS servers assigned to my laptop by DHCP servers.  In the case of my home network I get the buggy DNS server from my ISP that doesn't work as often as I'd like.  In the case of my work network I often get hostnames resolved to internal IP addresses for servers where (because of my particular job) I really want the public ones.  To avoid the issue completely I hard code my DNS to always point at Google's free DNS service on <code>8.8.8.8</code>.  There's just one problem with this:</p>
+<pre>bash$ ssh sandbox1.dev.example.priv
+ssh: Could not resolve hostname sandbox1.dev.example.prvi: nodename nor servname provided, or not known</pre>
+<p>Ooops! Entries for my development servers only exists on our local work DNS server and if I'm not using it I can't find any of them!</p>
+<p>Luckily my Mac (and other unix like boxes) allows me to override DNS servers using the <code>/etc/hosts</code> file (Windows has something similar too.)  In its simplest form this file contains one override per line, an IP address followed by one or more hostnames it overrides.  For example:</p>
+<p>   10.0.0.1 sandbox1.dev.example.priv<br />
+   10.0.0.2 sandbox2.dev.example.priv<br />
+   10.0.1.1 db.dev.example.priv</p>
+<p>And so on.  My kludgy soliton is for each development server that I want to use to put a line in <code>/etc/hosts</code> so I don't have to remember it's IP address (and more importantly, so I can use the addresses in my browser and still have it map to the right virtual host on the webserver.)  However, doing this by hand gets old <em>real</em> quick.  Running <code>dig</code> against the company DNS server's IP address, copying and pasting the resolved IP address into the hosts file using a text editor is something that takes the better part of a minute, is prone to mistakes, and completely interrupts my train of thought.  What I want is a simple command to automate the whole process of adding or updating an entry like this:</p>
+<pre>bash$ hostify sandbox.dev.example.com</pre>
+<p>And maybe I could have it update all the entries that it knows about so they don't get out of date whenever I type:</p>
+<pre>bash$ hostify -r</pre>
+<p>Right! Time to write some Perl.</p>
+<h2>Using Net::DNS to do DNS lookups</h2>
+<p>You'd think that dealing with the complexities of DNS would be the hard bit, but looking up domain names with Perl is actually really trivial.  We can almost copy the example out of the perldoc for <a href="http://search.cpan.org/dist/Net-DNS">Net::DNS</a>:</p>
+<pre>
+my $res = Net::DNS::Resolver-&gt;new(
+  nameservers =&gt; [qw(10.5.0.1)],
+);
+
+my $query = $res-&gt;search($hostname);
+
+if ($query) {
+  foreach my $rr ($query-&gt;answer) {
+    next unless $rr-&gt;type eq "A";
+    say "Found an A record: ".$rr-&gt;address;
+  }
+}
+</pre>
+<p>And that's about all there is to it.  Now for the hard bit...</p>
+<h2>Using Tie::File to edit a file in place</h2>
+<p>We either need to add an entry to our existing <code>/etc/hosts</code> file or update one or more entries in the middle of the file.  However, if we were to use the standard <code>open</code> function that Perl provides we're going to quickly run into a problem:  The open (and sysopen) syntax is optomised for either appending data onto the end of the file, or in a pinch overwriting byte for byte in the middle of the file.  What it won't do is automatically handle the case where we want to replace something in the middle of the file with more or fewer bytes.  We end up having to manually read in and echo out the tail end of the file which results in us having to write a lot of complex "bookkeeping" code we'd rather not concern ourselves with.</p>
+<p>One of the easiest ways in Perl to edit a file in place without worry about these niggly details is to instead use a core module called <a href="http://search.cpan.org/dist/Tie-File">Tie::File</a>.  This module uses a magic feature in Perl called <em>tieing</em> where some functionality is <em>tied</em> to a Perl data structure - any attempts to read from or modify the tied data structure cause Perl code to be executed to do something clever instead of modifying a dumb chunk of memory.  In the case of Tie::File each element in the array that it ties maps to a line in the file on disk - reading from the array reads in lines from the file, and writing to the array writes out to disk.</p>
+<p>So, for example, to <em>tie</em> our array to the hosts file, we just need to use the special <code>tie</code> syntax:</p>
+<pre>tie my @file, 'Tie::File', "/etc/hosts"
+  or die "Can't open /etc/hosts: $!";</pre>
+<p>Now altering a line in the middle of our file is simple:</p>
+<pre># alter the 21st line in the file
+$file[20] = "10.0.69.1 filestore.example.priv";</pre>
+<p>Tie::File seamlessly handles all the complicated bits about moving the stuff after the line we've just altered.  Perfect!</p>
+<h2>Rudimentary argument passing with <code>-s</code></h2>
+<p>My script needs to be able to only accept one simple command line option to tell it to also update all hostnames it's previously inserted.  Because I'm lazy, I didn't even use a module to do this but rather used the simple <code>-s</code> command line option to tell perl to shove anything it sees on the command line starting with a dash into a similarly named variable in the main namespace:</p>
+<pre>#!/usr/bin/env perl -s
+if ($r) { print "Someone called us with -r\n" }</pre>
+<p>Of course, with strictures and warnings on I have to write something a little more complex:</p>
+<pre>#!/usr/bin/env perl -s
+use 5.12.0;
+use warnings;
+if ($::r &amp;&amp; $::r) { say "Someone called us with -r" }</pre>
+<p>I need to use <code>$::r</code> not <code>$r</code> because the former, being a fully qualified variable, doesn't need predeclaration when running under <code>use strict</code> (which is implicitly turned on when I asked to <code>use 5.12.0</code>.)   I also need to use <code>$::r &amp;&amp; $::r</code> not <code>$::r</code> because otherwise warnings would notice that the variable was only being used once in the entire run of the code and emit a warning (this is one of the rare cases where this isn't a bug - the variable really does get its value without ever being set by Perl code.)</p>
+<h2>The Complete Script</h2>
+<p>And here's the complete finished script.</p>
+<pre>#!/usr/bin/env perl -s
+
+use 5.12.0;
+use warnings;
+
+use Net::DNS;
+use Tie::File;
+
+# look at the file
+tie my @file, 'Tie::File', "/etc/hosts"
+  or die "Can't open /etc/hosts: $!";
+
+# did someone want to update all the cached entires?
+if ($::r &amp;&amp; $::r) {
+  my $found = 0;
+  foreach (@file) {
+    # skip down until the comment in my /etc/hosts that
+    # states that "cached entries are below this point"
+    next unless $found ||= m/cached entries/; 
+
+    # then replace each host entry
+    s{\A\d+\.\d+\.\d+\.\d+\s+(?&lt;host&gt;.*)\z}{
+       dns_lookup($+{host}) . " $+{host}";
+     }e;
+  }
+  exit unless @ARGV;
+}
+
+my $host = shift // die "No hostname supplied\n";
+my $ip = dns_lookup( $host );
+
+# look for an existing entry and replace it
+foreach (@file) {
+  exit if s/\A\d+\.\d+\.\d+\.\d+\s+\Q$host\E\z/$ip $host/;
+}
+
+# not found?  Add it to the end
+push @file, "$ip $host";
+
+########################################################################
+
+sub dns_lookup {
+  my $hostname = shift;
+
+  my $res = Net::DNS::Resolver-&gt;new(
+    nameservers =&gt; [qw(10.5.0.1)],
+  );
+
+  my $query = $res-&gt;search($hostname);
+  
+  if ($query) {
+    foreach my $rr ($query-&gt;answer) {
+      next unless $rr-&gt;type eq "A";
+      return $rr-&gt;address;
+    }
+    die "No A record for $hostname";
+  }
+
+  die "query for $hostname failed: ", $res-&gt;errorstring;
+}</pre>

@@ -1,0 +1,102 @@
+---
+layout: post
+title: Support your Local Library
+date: 2011-01-22 08:58:22.000000000 -05:00
+type: post
+published: true
+status: publish
+categories: []
+tags: []
+meta:
+  _edit_last: '9278756'
+author:
+  login: 2shortplanks
+  email: mark@twoshortplanks.com
+  display_name: 2shortplanks
+  first_name: Mark
+  last_name: Fowler
+---
+<p>In this blog post I talk about the first step of modularising code from simple scripts. I'm going to cover extracting routines from the scripts into a shared module in the local file system and using FindBin to locate and load that module from within the scripts.</p>
+<h2>Iterative Development</h2>
+<p>We've all written small one off scripts that have grown over time to become more than what they originally were intended to be, with new features and functionality being grafted on as time goes by.  The code gets more and more complex and it's hard to maintain so much code in a simple script.  Often around the same time we realise that we need some of the functionality of this script in another script.  We could cut and paste, but this will end up in a maintenance nightmare with the same code being repeated in any number of scripts.</p>
+<p>The obvious solution to both issues is to modularise:  To move this code into a separate module and include that module at the start of our various scripts.</p>
+<p>Now, lots of Perl programmers will recommend converting your code straight into a distribution (i.e. packaging your code up with a Makefile.PL, tests, etc.)  However: This is a big step and involves a lot of work, both upfront and whenever you need to change the code (every time you make a change to a distribution you have to reinstall it.)  There's an intermediate step we can take first: We can move the code into a local module in same directory.  This is a lot easier, and any changes we make to the code is 'live'. It's a lot closer to the development we have right now, just in more than one file.</p>
+<h2>A worked example</h2>
+<p>So, let's start with a simple script:</p>
+<pre>#!/usr/bin/p
+use strict;
+use warnings;
+use DBI;
+
+my $dbh = DBI-&gt;connect(
+  "DBI:mysql:database=live;host=livedb.twoshortplanks.com",
+  "admin",
+  "opensaysme",
+  { RaiseError =&gt; 1 }
+);
+
+...</pre>
+<p>We'd like to avoid encoding our database username and password at the start of each admin script we write, so we'd like to turn this into code to be loaded from a module.  Let's start by turning the code we want to extract into a function</p>
+<pre>#!/usr/bin/perl
+
+use strict;
+use warnings;
+use DBI;
+
+sub connect_to_live_db {
+  return DBI-&gt;connect(
+    "DBI:mysql:database=live;host=livedb.twoshortplanks.com",
+    "admin",
+    "opensaysme",
+    { RaiseError =&gt; 1 }
+  );
+}
+
+my $dbh = connect_to_live_db();
+
+...</pre>
+<p>Now, let's move this code into a module called TwoShortPlanksUtils which we store in a file "TwoShortPlanksUtil.pm" in the same directory as our admin scripts.  We make the code avaible to any module using our module by  using Exporter to export the function back into scripts that ask for it in the usual fashion.</p>
+<pre>package TwoShortPlanksUtils;
+
+use strict;
+use warnings;
+
+use base qw(Exporter);
+our @EXPORT_OK;
+
+sub connect_to_live_db {
+  return DBI-&gt;connect(
+    "DBI:mysql:database=live;host=livedb.twoshortplanks.com",
+    "admin",
+    "opensaysme",
+    { RaiseError =&gt; 1 }
+  );
+}
+push @EXPORT_OK,"connect_to_live_db";
+
+1;</pre>
+<p>Now let's use it in our script, just like we would as if we'd created a full distribution and installed it.</p>
+<pre>#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use TwoShortPlanksUtil qw(connect_to_live_db);
+my $dbh = connect_to_live_db();</pre>
+<p>Hooray.  When we test if the script everything works...as long as we run it from the correct directory that is.  In order for this to work the directory TwoShortPlanksUtil.pm is in must be in <code>@INC</code>, the list of places Perl will look for modules to load.  This normally contains the current working directory, so if you execute your script from the command line from the directory that contains it it works.  However, if your script lives in your ~/bin directory (or for that matter anywhere else in your <code>$PATH</code>) and you expect to be able to execute it from an arbitrary directory then this won't work at all.</p>
+<p>What we need to do is modify our script's <code>@INC</code> to always contain the directory the script is located in.  The magic incarnation to insert into our script is:</p>
+<pre>use FindBin;
+use lib $FindBin::Bin;</pre>
+<p>When you load the FindBin module it examines the <code>$0</code> variable (which contains the current executing script path) and the current working directory and works out the path to the directory containing the script and stores it in the <code>$FindBin::Bin</code> variable, which it exports.  By passing this to the <code>lib</code> pragma we include that directory in <code>@INC</code>.</p>
+<p>The boilerplate at the start of our code now looks like:</p>
+<pre>#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib $FindBin::Bin;
+
+use TwoShortPlanksUtil qw(connect_to_live_db);
+my $dbh = connect_to_live_db();</pre>
+<p>And this now works no matter where we execute our script from!</p>

@@ -1,0 +1,71 @@
+---
+layout: post
+title: ''
+date: 
+type: post
+published: false
+status: draft
+categories:
+- '1'
+tags: []
+meta:
+  _wpcom_is_markdown: '1'
+  sharing_disabled: '1'
+  _wpas_skip_facebook: '1'
+  _wpas_skip_google_plus: '1'
+  _wpas_skip_twitter: '1'
+  _wpas_skip_linkedin: '1'
+  _wpas_skip_tumblr: '1'
+  _wpas_skip_path: '1'
+author:
+  login: 2shortplanks
+  email: mark@twoshortplanks.com
+  display_name: 2shortplanks
+  first_name: Mark
+  last_name: Fowler
+---
+<p>Moose is wonderful, and Moose is great. But occasionally you <b>do</b> run into <em>some</em> problems.</p>
+<pre><code>package ProvidesAttribute;
+use Moose::Role;
+
+has 'an_attribute' =&gt; (
+    is =&gt; 'ro',
+);
+
+1;</code></pre>
+<p>And let's write another role that requires that the class that consumes it has a <code>an_attribute</code> method:</p>
+<pre>package NeedsAttribute;
+use Moose::Role;
+
+requires 'an_attribute';
+
+1;</pre>
+<p>And a class that consumes both of these:</p>
+<pre>package Class;
+use Moose;
+
+with 'ProvidesAttribute','NeedsAttribute';
+
+1;</pre>
+<p>This should all work, right? The <code>an_attribute</code> method should be provided by the attribute declaration in <code>ProvidesAttribute</code> thus satisfying the <code>requires</code> in <code>NeedsAttribute</code>. Nope. Not with the latest version of Moose available at the time of writing (2.1403)...</p>
+<pre><code>bash$ perl -e 'use Class'
+'ProvidesAttribute|NeedsAttribute' requires the method 'an_attribute' to be implemented by 'Class' at /Users/Mark/perl5/perlbrew/perls/perl-5.18.2/lib/site_perl/5.18.2/darwin-2level/Moose/Exporter.pm line 419
+    Moose::with('ProvidesAttribute', 'NeedsAttribute') called at Class.pm line 4
+    require Class.pm at -e line 1
+    main::BEGIN at Class.pm line 0
+    eval {...} at Class.pm line 0
+Compilation failed in require at -e line 1.
+BEGIN failed--compilation aborted at -e line 1.</code></pre>
+<p>&nbsp;</p>
+<p>Bother! The attribute isn't a method at the time the role composition requirement checking is done. However, once we know that this is a problem the fix is simple. Just pre-declare the <code>an_attribute</code> sub in <code>ProvidesAttribute</code>:</p>
+<pre><code>package ProvidesAttribute;
+use Moose::Role;
+
+has 'an_attribute' =&gt; (
+    is =&gt; 'ro',
+);
+sub an_attribute;
+
+1;</code></pre>
+<p>Despite being a little ugly, now everything works.</p>
+<p>And in case you're wondering, no Moo doesn't have this same issue. You could <code>s/Moose/Moo/g</code> the above code and you wouldn't need the <code>sub an_attribute;</code>. Oh well.</p>

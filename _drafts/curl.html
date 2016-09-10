@@ -1,0 +1,72 @@
+---
+layout: post
+title: Mavericks and XCode 5 and WWW::Curl
+date: 
+type: post
+published: false
+status: draft
+categories: []
+tags: []
+meta:
+  _edit_last: '9278756'
+author:
+  login: 2shortplanks
+  email: mark@twoshortplanks.com
+  display_name: 2shortplanks
+  first_name: Mark
+  last_name: Fowler
+---
+<p>Sometimes you go through a lot of pain trying to get something to work, and you just need to write it down and put it on the internet.  You tell yourself this is useful;  You're doing it so that others can find your words and solve the problem too.  In reality, it's just cathartic.  And who doesn't like a good rant?</p>
+<p>## So What Broke? ##</p>
+<p>I recently updated my Mac to Mavericks (OS X 10.9).  Overall, I like it...but it broke something I care about. It broke <a href="http://curl.haxx.se/mail/archive-2013-10/0036.html">libcurl's handling of certificates.</a>, and in so doing broke my install of WWW::Curl also (since it's a wrapper around the system libcurl.)  This is remarkably hard to diagnose, because it just seems like the servers have suddenly stopped trusting each other (when in reality libcurl has just started effectively ignoring the options you're sending)</p>
+<p>Now, WWW::Curl (and its working certificate handling) is a dependency of some of the code I'm using.  Worse than forcing me to disable certificate security, I actually need to identify myself to the server with my own cert.  Just turning them off and running </p>
+<p>## Installing libcurl ##</p>
+<p>I'm not a great fan of installing software from source on my mac after having been bitten by fink and it's kin numerous times in the past.  This said, <a href="http://brew.sh/">homebrew</a> is actually pretty darn nifty, and can be used to install libcurl:</p>
+<p>    brew install curl   </p>
+<p>Wrrr, clunk, clunk and zap, I have `curl` in `/usr/local/Cellar/gcc47/4.7.3/bin`.  Hooray!</p>
+<p>## Installing WWW::Curl ##</p>
+<p>Now all we have to do is install WWW::Curl and link it against this libcurl, right?  Well, I did this:</p>
+<p>   wget http://cpan.metacpan.org/authors/id/S/SZ/SZBALINT/WWW-Curl-4.15.tar.gz<br />
+   gunzip -c WWW-Curl-4.15.tar.gz | tar -xvf -<br />
+   cd WWW-Curl-4.15<br />
+   export CURL_CONFIG=/usr/local/Cellar/curl/7.33.0/bin/curl-config<br />
+   perl Makefile.PL</p>
+<p>And things started to go wrong:</p>
+<p>    The version is libcurl 7.33.0<br />
+    Found curl.h in /usr/local/Cellar/curl/7.33.0/include/curl/curl.h<br />
+    In file included from /usr/local/Cellar/curl/7.33.0/include/curl/curl.h:34:<br />
+    In file included from /usr/local/Cellar/curl/7.33.0/include/curl/curlbuild.h:152:<br />
+    In file included from /usr/include/sys/socket.h:80:<br />
+    In file included from /usr/include/Availability.h:148:<br />
+    /usr/include/AvailabilityInternal.h:4098:10: error: #else without #if<br />
+            #else<br />
+             ^<br />
+    /usr/include/AvailabilityInternal.h:4158:10: error: unterminated conditional directive<br />
+            #if __MAC_OS_X_VERSION_MIN_REQUIRED &gt;= __MAC_10_6<br />
+             ^<br />
+    /usr/include/AvailabilityInternal.h:4131:10: error: unterminated conditional directive<br />
+            #if __MAC_OS_X_VERSION_MIN_REQUIRED &gt;= __MAC_10_5<br />
+             ^<br />
+    /usr/include/AvailabilityInternal.h:4108:10: error: unterminated conditional directive<br />
+            #if __MAC_OS_X_VERSION_MIN_REQUIRED &gt;= __MAC_10_4<br />
+             ^<br />
+    4 errors generated.<br />
+    Building curlopt-constants.c for your libcurl version<br />
+    Building Easy.pm constants for your libcurl version<br />
+    Building Share.pm constants for your libcurl version<br />
+    Checking if your kit is complete...<br />
+    Looks good<br />
+    Writing Makefile for WWW::Curl<br />
+    Writing MYMETA.yml and MYMETA.json</p>
+<p>That Ladies and Gentlemen is the sound of Apple's compiler sucking.  You see, not so long ago I upgraded to XCode 5 and <a href="">apparently this no longer ships with gcc</a>.  Uh oh.</p>
+<p>### Installing gcc ###</p>
+<p>I suspect I could have just re-downloaded XCode 4 and then used `xcode-select`.  But I didn't.  Let me know if that works, okay?  This is what I actually did:</p>
+<p>   brew install gcc47</p>
+<p>Then I waited a long time (while doing something else productive instead.)  Finally when I was done I had to manually edit the Makefile.PL to use the right preprocessor:</p>
+<p>   perl -pi -e 's!cpp"!/usr/local/Cellar/gcc47/4.7.3/bin/cpp"!' Makefile.PL<br />
+   perl Makefile.PL</p>
+<p>(yeah, it'd be nice if they'd been some sort of option for that.)  Then I altered the makefile for good measure too:</p>
+<p>    perl -pi -e 's{CC = cc}{CC = /usr/local/Cellar/gcc47/4.7.3/bin/gcc-4.7}' Makefile</p>
+<p>And then I could build it all.</p>
+<p>Of course, it still got errors.  But they're <a href="https://rt.cpan.org/Public/Bug/Display.html?id=88348">not new errors</a>.  So I force installed it and now it all 'works'.</p>
+<p>I hate computers sometimes.</p>

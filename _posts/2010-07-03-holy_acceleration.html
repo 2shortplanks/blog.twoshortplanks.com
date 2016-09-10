@@ -1,0 +1,79 @@
+---
+layout: post
+title: Accelerating your Editor with Acme::MetaSyntactic
+date: 2010-07-03 08:23:11.000000000 -04:00
+type: post
+published: true
+status: publish
+categories: []
+tags: []
+meta:
+  _edit_last: '9278756'
+author:
+  login: 2shortplanks
+  email: mark@twoshortplanks.com
+  display_name: 2shortplanks
+  first_name: Mark
+  last_name: Fowler
+excerpt: The Acme namespace on CPAN is a collection of supposedly useless junk that
+  often has no other purpose than to amuse or otherwise entertain the author and Perl
+  aficionados.  This said, not all of it's useless, with one particular module Acme::MetaSyntactic
+  being much more useful than you might first think.
+---
+<p>The Acme namespace on CPAN is a collection of supposedly useless junk that often has no other purpose than to amuse or otherwise entertain the author and Perl aficionados.  This said, not all of it's useless, with one particular module Acme::MetaSyntactic being much more useful than you might first think.</p>
+<p>Acme::MetaSyntactic is a module responsible for spewing out on demand random interesting names for things.  While this isn't something that you might want to do yourself, it's great for extending your editor.</p>
+<p>Six years ago at YACP::NA::Florida Damian Conway gave a talk about how he'd wired up vi to greatly speed up his Perl development.  While I haven't invested as much time as Damian has, with the help of Acme::MetaSyntatic I've been able to do some rudimentary code generation techniques that save me a lot of time without much outlay.</p>
+<p>I'm currently using the TextMate editor (Your Millage May Vary, and I've no bones to pick with anyone else who uses another editor.)  One of the simplest accelerators TextMate offers is "Snippets" - little bits of text inserted when you hit a key combination, or when you type a given string and hit tab.  Not just limited to simple text, these snippets can can also insert the result of running shell scripts, and thus allow a quick and rudimentary way to extend the editor's functionality.</p>
+<h2>The Poor Man's Debugger</h2>
+<p>One of the most basic snippets I have is to type "acme[TAB]".  This triggers the following snippet:</p>
+<pre><code>  print STDERR "`meta batman` `meta batman`\n";</code></pre>
+<p>In TextMate the backticks are one of the ways that snippets can call shell scripts, and in this case executes the "meta" command that ships with Acme::MetaSyntactic to give me a sound effect from the batman theme.  Thus typing:</p>
+<pre><code>  acme[TAB]
+  acme[TAB]
+  acme[TAB]</code></pre>
+<p>Would give me something like:</p>
+<pre><code>  print STDERR "wham_eth thunk\n";
+  print STDERR "powie sock\n";
+  print STDERR "whack uggh\n";</code></pre>
+<p>This is a very quick way to get a unique human readable print statement, and is a lot less tedious then having to keep writing things like:</p>
+<pre><code>  print STDERR "Got to here\n";</code></pre>
+<p>And</p>
+<pre><code>  print STDERR "Also got to here\n";</code></pre>
+<p>And so on.</p>
+<h2>'One Off' script variables</h2>
+<p>One of the great things about Acme::MetaSyntatic names is that they're always valid Perl variable names, so they're great for creating one off scripts.  I have multiple snippets that insert code that executes something and assigns it to a uniquely named variables.</p>
+<p>Let me give you  a real example. I have a remote service I have to access quite often and rather than using the interactive console I prefer to instead write "one off" scripts (which I can then check into version control just incase I need them again several months hence.)</p>
+<p>Of course, with a handy set of snippets, the time it takes to write the boilerplate of code can be eliminated.  For example I type:</p>
+<pre><code>  call[TAB]</code></pre>
+<p>And it spits out this:</p>
+<pre><code>  my $sergeant_colon = $remote-&gt;call(
+    method =&gt; "ReticulateSplines",
+    id     =&gt; $id,
+    param  =&gt; {
+      
+    },
+  );</code></pre>
+<p>And then I type:</p>
+<pre><code>  call[TAB]</code></pre>
+<p>And this time it spits out:</p>
+<pre><code>  my $windle_poons = $remote-&gt;call(
+    method =&gt; "ReticulateSplines",
+    id     =&gt; $id,
+    param  =&gt; {
+      
+    },
+  );</code></pre>
+<p>So each result that I get back from the remote server is assigned to it's own variable name.  Again, this was just as simple as creating a snippet that looks like:</p>
+<pre><code>  my \$`meta discworld` = \$bc-&gt;call(
+    method =&gt; "${1:ReticulateSplines}",
+    id     =&gt; \$id,
+    param  =&gt; { 
+      $2
+    },
+  );</code></pre>
+<p>(The $1 and $2 let TextMate know where to put the cursor when I execute this snippet and when I subsequently hit tab.)</p>
+<h2>And More...</h2>
+<p>Of course Acme::MetaSyntatic isn't just limited to Perl.  I have macros that do JavaScript and HTML:</p>
+<pre><code>  console.log("holy_taxation holy_shows_up");
+  &lt;div id="Barney_Gumble"&gt;&lt;/div&gt;</code></pre>
+<p>You get the idea.  I'm sure you can think of a million places where you can save yourself thirty seconds each time by some clever basic code generation.</p>

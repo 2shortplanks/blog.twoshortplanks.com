@@ -1,0 +1,246 @@
+---
+layout: post
+title: XML::Easy by Example
+date: 2009-11-09 22:21:47.000000000 -05:00
+type: post
+published: true
+status: publish
+categories:
+- '1'
+tags: []
+meta:
+  _edit_last: '9278756'
+author:
+  login: 2shortplanks
+  email: mark@twoshortplanks.com
+  display_name: 2shortplanks
+  first_name: Mark
+  last_name: Fowler
+excerpt: Last week I posted about why you should be interested in the new XML parsing
+  library on the block, XML::Easy.  In this post I'm going to actually dive into some
+  code so you can see what it's like to work with.
+---
+<p>Last week I <a href="http://blog.twoshortplanks.com/2009/11/02/introducing-xmleasy/">posted</a> about why you should be interested in the new XML parsing library on the block, XML::Easy.  In this post I'm going to actually dive into some code so you can see what it's like to work with.</p>
+<h2>Parsing XML by Example</h2>
+<p>The basics of parsing is pretty straight forward:</p>
+<pre><code>use XML::Easy::Text qw(xml10_read_document);
+
+# read in the document
+open my $fh, &quot;&lt;:utf8&quot;, &quot;somexml.xml&quot;;
+  or die &quot;Can&#x27;t read filehandle: $!&quot;;
+my $string = do { local $/; &lt;&gt; };
+
+# parse it
+my $root_element = xml10_read_document($string);</code></pre>
+<p>Now <code>$root_element</code> contains an XML::Easy::Element.  Getting basic facts out of this element such as its name or attribute values is easy too:</p>
+<pre><code>say &quot;the name of the root element is &quot;.$root_element-&gt;type_name;
+say &quot;the content of the href attribute is &quot;.$root_element-&gt;attribute(&quot;href&quot;)
+  if defeined $root_element-&gt;attribute(&quot;href&quot;);</code></pre>
+<p>Getting at the child elements involves dealing with a <em>twine</em>.  What's a <em>twine</em> you say?  Why it's nothing more than an alternating list of strings and elements.  Let's look at an example to help explain this:</p>
+<p>   my $input = &#x27;&lt;p&gt;Hello my &lt;i&gt;friend&lt;/i&gt;, here is my picture: &lt;img src=&quot;http://farm1.static.flickr.com/116/262065452_6017d39626_t.jpg&quot; /&gt;&lt;/p&gt;&#x27;</p>
+<p>We can then call this:</p>
+<p>   my $p = xml10_read_document($string);<br />
+   my $twine = $p-&gt;content_twine;</p>
+<p>The <code>$twine</code> variable now contains a an array reference holding alternating strings and XML::Easy::Elements</p>
+<ul>
+<li><code>$twine-&gt;[0]</code> contains the string "Hello my"</li>
+<li><code>$twine-&gt;[1]</code> contains an XML::Easy::Element representing the &lt;i&gt; tag (which in turn will contain the text "friend")</li>
+<li><code>$twine-&gt;[2]</code> contains the string ", here is my picture "</li>
+<li><code>$twine-&gt;[3]</code> contains an XML::Easy::Element representing the &lt;img&gt; tag</li>
+<li><code>$twine-&gt;[4]</code> contains the empty string "" between the &lt;img&gt; tag and the closing &lt;/p&gt; tag</li>
+</ul>
+<p>The important thing to remember about twines is that they <em>always</em> alternate element-string-element-string.  When two elements are next to each other in the source document then they're separated by the empty string.  You'll note that the twine first and last elements are <strong>always</strong> strings, even if they have to be empty, and an "empty" tag has a twine that contains just one element - the empty string.</p>
+<p>Now we know the basics, let's look at a practical example.  Imagine we want to get all the possible anchors (internal links) in an XHTML document.  This simply involves looking for all the <code>&lt;a&gt;</code> tags that have a name attribute:</p>
+<p><code>
+<pre>sub get_links {
+  my $element = shift;
+  my @results;
+
+  # check this element
+  push @results, $element-&gt;attribute(&quot;name&quot;)
+    if $element-&gt;type_name eq &quot;a&quot; &amp;&amp; defined $element-&gt;attribute(&quot;name&quot;);
+
+  # check any child elements
+  my $swizzle = 0;
+  foreach (@{ $element-&gt;content_twine() }) {
+
+    # skip every other array element because it&#x27;s a string
+    next if $swizzle = !$swizzle;
+
+    # recurse into the child nodes
+    push @results, get_links($_);
+  }
+
+  return @results;
+}</pre>
+<p></code></p>
+<p>If we want to make this even easier on ourselves there's a bunch of helper functions in the XML::Easy::Classify module that can be used to help process parts of XML documents.  For example, we could have written the above code in a more terse (but less efficient) way by using <code>is_xml_element</code>:</p>
+<pre><code>use XML::Easy::Classify qw(is_xml_element);
+
+sub get_links {
+  my $element = shift;
+  my @results;
+
+  # check this element
+  push @results, $element-&gt;attribute(&quot;name&quot;)
+    if $element-&gt;type_name eq &quot;a&quot; &amp;&amp; defined $element-&gt;attribute(&quot;name&quot;);
+
+  # check any child elements
+  push @results, get_links($_)
+    foreach grep { is_xml_element $_ } @{ $element-&gt;content_twine() };
+
+  return @results;
+}</code></pre>
+<h2>Generating XML by Example</h2>
+<p>If you've got an XML::Easy::Element instance, writing it out as an XML document is just the opposite of reading it in:</p>
+<pre><code>use XML::Easy::Text qw(xml10_write_document);
+
+# turn it into a string
+my $string = xml10_write_document($root_element);
+
+# write out the document
+open my $fh, &quot;&gt;:utf8&quot;, &quot;somexml.xml&quot;;
+  or die &quot;Can&#x27;t write to filehandle: $!&quot;;
+print {$fh} $string;</code></pre>
+<p>So  One of the first things you have to know about XML::Easy::Elements and their contents is that they are <em>immutable</em>, or put another way <em>you can't change them once they're created</em>.  This means they have no methods for setting the name of an element, altering the attributes, or setting the children.  All of these must be passed in in the constructor.</p>
+<p>Let's just jump in with an example.  We're going to create a little code that outputs the following XML document:</p>
+<pre><code>&lt;html&gt;
+   &lt;head&gt;&lt;title&gt;My Links&lt;/title&gt;&lt;/head&gt;
+   &lt;body&gt;
+     &lt;h1&gt;Links&lt;/h1&gt;
+     &lt;ul&gt;
+       &lt;li&gt;&lt;a href=&quot;http://search.cpan.org/&quot;&gt;Search CPAN&lt;/a&gt;&lt;/li&gt;
+       &lt;li&gt;&lt;a href=&quot;http://blog.twoshortplanks.com/&quot;&gt;Blog&lt;/a&gt;&lt;/li&gt;
+       &lt;li&gt;&lt;a href=&quot;http://www.schlockmercenary.com/&quot;&gt;Schlock&lt;/a&gt;&lt;/li&gt;
+     &lt;/ul&gt;
+   &lt;/body&gt;
+&lt;/html&gt;</code></pre>
+<p>(I've added extra whitespace in the above example for clarity - the code examples that follow won't reproduce this whitespace)</p>
+<p>I'm going to start of showing you the most verbose and explicit objected-orientated way to create XML::Easy::Elements, and then I'm going to show you the much quicker functional interface once you know what you're doing.  The verbose way of creating an object is to explicitly pass in each of the things to the constructor:</p>
+<p>  XML::Easy::Element-&gt;new($name, $attributes_hashref, $xml_easy_content_instance)</p>
+<p>The trouble with using such code is that it often requires requires pages and pages of code that puts Java to shame in it's repetition of the obvious (you don't really need to read the following code, just gawk at its length:)</p>
+<pre><code>my $root_element = XML::Easy::Element-&gt;new("html",
+  {},
+  XML::Easy::Content-&gt;new([
+    "",
+    XML::Easy::Element-&gt;new("head",
+      {},
+      XML::Easy::Content-&gt;new([
+        "",
+        XML::Easy::Element-&gt;new("title",
+          {},
+          XML::Easy::Content-&gt;new([
+            "My Links",
+          ])
+        ),
+        "",
+      ]),
+    ),
+    "",
+    XML::Easy::Element-&gt;new("body",
+      {},
+      XML::Easy::Content-&gt;new([
+        "",
+        XML::Easy::Element-&gt;new("h1",
+          {},
+          XML::Easy::Content-&gt;new([
+            "Links",
+          ])
+        ),
+        "",
+        XML::Easy::Element-&gt;new("ul",
+          {},
+          XML::Easy::Content-&gt;new([
+            "",
+            XML::Easy::Element-&gt;new("li",
+              {},
+              XML::Easy::Content-&gt;new([
+                "",
+                XML::Easy::Element-&gt;new("a",
+                  { href =&gt; "http://search.cpan.org/" },
+                  XML::Easy::Content-&gt;new([
+                    "Search CPAN",
+                  ]),
+                ),
+                "",
+              ]),
+            ),
+            "",
+            XML::Easy::Element-&gt;new("li",
+              {},
+              XML::Easy::Content-&gt;new([
+                "",
+                XML::Easy::Element-&gt;new("a",
+                  { href =&gt; "http://blog.twoshortplanks.com/" },
+                  XML::Easy::Content-&gt;new([
+                    "Blog",
+                  ]),
+                ),
+                "",
+              ]),
+            ),
+            "",
+            XML::Easy::Element-&gt;new("li",
+              {},
+              XML::Easy::Content-&gt;new([
+                "",
+                XML::Easy::Element-&gt;new("a",
+                  { href =&gt; "http://schlockmercenrary.com/" },
+                  XML::Easy::Content-&gt;new([
+                    "Schlock",
+                  ]),
+                ),
+                "",
+              ]),
+            ),
+            "",
+          ]),
+        ),
+        "",
+      ]),
+    ),
+    "",
+  ]),
+);</code></pre>
+<p>So, we never ever write code like that!  For starters we could <a href="http://dl.getdropbox.com/u/301667/nopaste/bxk7lCMTgCcG0buyI4X9FQ.txt">use twines instead of content objects</a>, but that's too verbose too.  We use the functional interface presented by XML::Easy::NodeBasics instead:</p>
+<pre><code>use XML::Easy::NodeBasics qw(xe);
+
+my $root_element = xe("html",
+  xe("head",
+    xe("title", "My Links"),
+  ),
+  xe("body",
+    xe("h1", "Links"),
+    xe("ul",
+      xe("li",
+        xe("a", { href =&gt; "http://search.cpan.org/" }, "Search CPAN"),
+      ),
+      xe("li",
+        xe("a", { href =&gt; "http://blog.twoshortplanks.com/" }, "Blog"),
+      ),
+      xe("li",
+        xe("a", { href =&gt; "http://www.schlockmercenary.com/" }, "Schlock"),
+      ),
+    ),
+  ),
+);</code></pre>
+<p>The <code>xe</code> function simply takes a tag name followed by a list of things that are either hashrefs (containing attributes), strings (containing text,) or XML::Easy::Elements (containing nodes.)  It can also take content objects and twines, which is handy when you're re-using fragments of XML that you've extracted from other documents you may have parsed.  In short, it Does The Right Thing with whatever you throw at it.</p>
+<p>Of course, we can optomise further by knowing that this code is Perl:</p>
+<pre><code>tie my %hash, "Tie::IxHash",
+  "http://search.cpan.org/" =&gt; "Search CPAN",
+  "http://blog.twoshortplanks.com" =&gt; "Blog",
+  "http://www.schlockmercenary.com" =&gt; "Schlock",
+;
+
+my $root_element = xe("html",
+  xe("head",
+    xe("title", "My Links"),
+  ),
+  xe("body",
+    xe("h1", "Links"),
+    xe("ul",
+      map { xe("li", xe("a", { href =&gt; $_ }, $hash{$_}) ) } keys %hash
+    ),
+  ),
+);</code></pre>
+<p>And that's about it for basic XML parsing and generation with XML::Easy.  There's a lot more handy functions and explantions of the theory behind XML::Easy in <a href="http://search.cpan.org/dist/XML-Easy/">the documentation</a>.  In <a href="http://blog.twoshortplanks.com/2009/11/16/xmleasyproceduralwriter/">my next post</a> I'm going to look at another way of creating XML using XML::Easy, when I talk about one of my own modules: XML::Easy::ProceduralWriter.</p>

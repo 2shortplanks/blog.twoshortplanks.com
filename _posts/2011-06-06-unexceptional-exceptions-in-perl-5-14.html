@@ -1,0 +1,79 @@
+---
+layout: post
+title: Unexceptional Exceptions in Perl 5.14
+date: 2011-06-06 08:37:54.000000000 -04:00
+type: post
+published: true
+status: publish
+categories: []
+tags: []
+meta:
+  _edit_last: '9278756'
+author:
+  login: 2shortplanks
+  email: mark@twoshortplanks.com
+  display_name: 2shortplanks
+  first_name: Mark
+  last_name: Fowler
+excerpt: 'There''s a lot to love about Perl 5.14, but one of the best changes is a
+  subtle one:  Native exception handling is now reliable.'
+---
+<p>There's a lot to love about Perl 5.14, but one of the best changes is a subtle one:  Native exception handling is now reliable.</p>
+<p>Perl's native exception syntax uses an eval block as the traditional "try" block, and requires checking <code>$@</code> to see if it contains an exception.</p>
+<p><code>
+<pre>  eval {
+    ...; # do something that might throw an exception
+  };
+  
+  if ($@) {
+    ...; # handle exception here
+  }</pre>
+<p></code></p>
+<p>Just like other languages code in the block is evaluated until an exception is thrown and then control jumps out of the block.  Perl doesn't have a native <code>catch</code> syntax however - it simply puts the exception into <code>$@</code> where you can check it with a standard if statement.</p>
+<p>Herein lies the problem in all versions of Perl prior to 5.14.  Prior to 5.14 <code>$@</code> is assigned and then the block is immediately exited;  With 5.14 the block is immediately exited and then <code>$@</code> is assigned.  A subtle, but important difference.</p>
+<p>Perl's improvised catch mechanism <em>relies</em> on <code>eval</code> undefining <code>$@</code> if no exception occurred (so the <code>if</code> block won't execute.)  Each time Perl executes an eval therefore it must undefine $@.  Prior to 5.14 this interacts <em>badly</em> with object destructors.</p>
+<p><code>
+<pre>  package SomethingComplex;
+  sub new { return bless {}, shift };
+  sub DESTROY {
+    eval {
+      ...; # some cleanup code that might throw an exception
+    };
+    if ($@) {
+      ...; # handle exception in cleanup code
+    }
+  }
+  
+  package main;
+  
+  eval {
+    my $thingy = SomethingComplex-&gt;new();
+    ...; # do something that might throw an exception
+  };
+  if ($@) {  
+    ...; # will never be executed even on exception
+  }</pre>
+<p></code></p>
+<p>If an exception occurs in the eval block in main then execution will stop and control will immediately jump out of the block.  <code>$thingy</code> will fall out of scope.  When this happens the object's <code>DESTROY</code> block will be executed.  This in turn runs its own <code>eval</code> which will unset <code>$@</code> as it executes.   Assuming another exception doesn't occur during cleanup by the time we reach the <code>if</code> statement in main <code>$@</code> will have been undefined even though an exception happened in the <code>eval</code> block immediately above.  Disaster!</p>
+<p>The, simple, quite frankly terrible, workaround is to write this:</p>
+<p><code>
+<pre>  eval {
+    ...; # do something that might throw an exception
+    1;
+  } or do {
+    ...; # handle the exception here
+  }</pre>
+<p></code></p>
+<p>We're no longer relying on the <code>$@</code> to tell that an exception has occurred but on the fact that an eval block quill return false on exception handling.  Of course, we can't now reliably look at <code>$@</code> to find out what kind of exception occurred.  There's ways around this, but they're even more complex to code.</p>
+<p>A better fix on Perl's prior to 5.14 is to use the Try::Tiny module from the CPAN that handles all of this for us.</p>
+<p><code>
+<pre>  use Try::Tiny;
+  try {
+    ...; # do something that might cause an exception.
+  } catch {
+    ...; # handle the exception stored in $_ here
+  };</pre>
+<p></code></p>
+<p>Of course, no matter how tiny Try::Tiny is, there's no getting away from the fact that it's not a module that's bundled with Perl;  I can rely on getting it installed whenever I install software, but not on every machine I might happen to admin and want to make use of the system perl.</p>
+<p>Luckily, Perl 5.14 solves this problem entirely for us by executing the block first - therefore executing all destructors that might mess with <code>$@</code> first - and then, once all that's done, populating <code>$@</code> with the exception.</p>
+<p>Thanks Perl 5 Porters!</p>

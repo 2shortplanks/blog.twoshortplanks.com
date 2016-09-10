@@ -1,0 +1,252 @@
+---
+layout: post
+title: DropBox as a No Paste server
+date: 2009-10-26 18:30:36.000000000 -04:00
+type: post
+published: true
+status: publish
+categories:
+- '1'
+tags: []
+meta:
+  _edit_last: '9278756'
+  _oembed_0c73f373f5a21748b71222a686d6c7cb: '{{unknown}}'
+  _oembed_0e66bcc20e62cd7fdaa3edeb07485595: '{{unknown}}'
+  _oembed_0f8911b778ef8147145e8c3ad75e31b6: '{{unknown}}'
+  _oembed_447a63216350642552fee110275b8927: '{{unknown}}'
+  _oembed_982c050a4f3b69f6184ec9b33bc44f72: '{{unknown}}'
+  _oembed_94b71270ec7f6013f3fbd3888f64f5ec: '{{unknown}}'
+  _oembed_88491675997a241baafd830683329330: '{{unknown}}'
+  _oembed_c72cddecce5b1794d9e85e8fedbc0779: '{{unknown}}'
+  _oembed_4de298487898465e6c352010fa6d6437: '{{unknown}}'
+  _oembed_832585fc4502286e1ca8907cea2c98b5: '{{unknown}}'
+  _oembed_0d136081678e32b8961f6b3593d498ec: '{{unknown}}'
+  _oembed_5ec1dc392ac7a9c874b34bf224351c42: '{{unknown}}'
+  _oembed_8fdf730432a31a8f5b6e41349c9b2b8b: '{{unknown}}'
+  _oembed_686763fbee36549ed13bcc3e5579606a: '{{unknown}}'
+  _oembed_ebcf9e6d65a2a51cfe45b25115446b64: '{{unknown}}'
+  _oembed_30b73faae2a215cb01f7d1fefde9077a: '{{unknown}}'
+  _oembed_fbd530b3d6a2175f7413fe09bb5c3aca: '{{unknown}}'
+  _oembed_1cb0382eb965f70ccfada1b63c807e97: '{{unknown}}'
+  _oembed_6456cf36ce77c751b618b0513c9f3d5e: '{{unknown}}'
+  _oembed_afa57f77e0e96107674839a0b072e6e9: '{{unknown}}'
+  _oembed_6faedb7ab2c727559603f7b8e4451d93: '{{unknown}}'
+  _oembed_6a62537d52f88c04ff11ea2b5abbdc01: '{{unknown}}'
+  _oembed_884d4794a23bf60d7668775a899ec36a: '{{unknown}}'
+  _oembed_1e6561a1eb5bc41f808f7eae45c19595: '{{unknown}}'
+  _oembed_922d2bb04a64efc3d0aac49dd67cd9ca: '{{unknown}}'
+  _oembed_d06fb765322f98dc6c8e1ad32cf55eed: '{{unknown}}'
+  _oembed_fec307559429b9830d1ce28179a53eb9: '{{unknown}}'
+  _oembed_1c0f3b48b83201e9b47c57829b784171: '{{unknown}}'
+  _oembed_b5b0ef120506b3635a2acc8d76446dab: '{{unknown}}'
+  _oembed_3742a4f49d022a6479988db086306880: '{{unknown}}'
+  _oembed_9b16af53d6c6176d44a7922181cf3009: '{{unknown}}'
+  _oembed_7755baccabf45aac7e93008619be3d19: '{{unknown}}'
+  _oembed_2008be65e13dfdaee6d6626c35b60fd3: '{{unknown}}'
+  _oembed_31eadd9ca235d1a345307a1a47be510b: '{{unknown}}'
+  _oembed_9c261b0fee1d972a6f92ce53ad44f2d7: '{{unknown}}'
+  _oembed_03d66c125910de52334e9d7cabb47a7d: '{{unknown}}'
+  _oembed_d39aaff231fb0c1a7aac1bfaf95a6a91: '{{unknown}}'
+  _oembed_22bfaed4c3bfe4eead025bcae6091c69: '{{unknown}}'
+  _oembed_227bb01a983ba1fd092979f4359d9057: '{{unknown}}'
+  _oembed_f42ffd0d196df1dcce8110d59d7dd89b: '{{unknown}}'
+  _oembed_69b045a52b43b5a51a062bf12289bf14: '{{unknown}}'
+  _oembed_482df51581d66b3b386a0f03a584e5b7: '{{unknown}}'
+  _oembed_ba9f495ed3292f10be1759b1ec7f93b3: '{{unknown}}'
+  _oembed_a4f6535a9d6786475786da5f7220b06b: '{{unknown}}'
+  _oembed_cf55b3b9f8fd3b56f893602bc585461a: '{{unknown}}'
+author:
+  login: 2shortplanks
+  email: mark@twoshortplanks.com
+  display_name: 2shortplanks
+  first_name: Mark
+  last_name: Fowler
+excerpt: In this blog post I'm going to talk about my own custom "no paste" solution
+  that I've developed over the years.  How I started out using a web page as a service,
+  moved to scripting this from the command line, and how I finally ended up subverting
+  DropBox to my ends.
+---
+<p>In this blog post I'm going to talk about my own custom "no paste" solution that I've developed over the years.  How I started out using a web page as a service, moved to scripting this from the command line, and how I finally ended up subverting DropBox to my ends.  Skip to the end to get to the code.</p>
+<p>So, what's "no paste" I hear you ask?  "No paste" servers allow you to go to a webpage and submit a bit of text and get a unique url back where that text can be viewed.  This means that you don't have to paste a whole bunch of text into IRC or an IM conversation, you can just upload your text and and copy and paste only the link the "no paste" server sent back into your IM.  If you haven't seen one before check out <a href="http://pastie.textmate.org/">textmate's nopaste server</a>.</p>
+<p>This has several advantages.  Firstly and foremostly, it doesn't "SPAM" the conversation you're having. Pasting a whole bunch of code into a IRC channel where people are having a conversation causing that conversation to scroll off the screen before they can read it isn't polite.  Secondly it makes the text easier to read and easier to copy and paste into an editor (for example, most IRC an IM clients will prepend each line someone says with a datestamp when you copy and paste from them.)</p>
+<p>Excellent.  A useful idea.  Now how can we make it better?</p>
+<p>As a Perl programmer I tend to automate a heck of a lot of what I do with my computer.  Filing in a form on a webpage is easy to do, but it's more hassle than hitting a key combination that pastes whatever text is highlighted in your editor.  If we do it a lot we should make the computer do all the work!</p>
+<p>For a long time I used the <a href="http://search.cpan.org/dist/App-Nopaste">App::Nopaste</a> module on CPAN which installs a command line utility called <code>nopaste</code> which integrates with a vast range of "no paste" servers.  This utility can take input on the command line and automatically fill in the forms on those websites for you.  This means that it's trivial to execute from your editor - in textmate it's just a simple "Bundle" command.</p>
+<p>In the end I stopped using <code>nopaste</code> not because I had a problem with the script, but because I had a problem with the nopaste servers, in particular the lack of privacy.  Now, I'm a great believer in simply not putting anything on the internet that is truly private (face it, it's going to get out!) but there exists a bunch of "semi-private" stuff (closed source code, contact information, private correspondence) that shouldn't be put on a totally public paste service.  Often it's just a case of editing the URL that the "no paste" server returns by increasing or decreasing the number at the end to see the thing the next or previous person pasted!</p>
+<p>So in the end I decided it might be a good idea to run my own custom "No Paste" solution with semi-secure (non-guessable) URLs.  One problem with that: I couldn't justify the infrastructure - I'm currently trying to reduce the amount of stuff I have to maintain, not increase it.   So I started looking at what infrastructure I'm already using and seeing how I can better use that.</p>
+<p>Enter <a href="http://www.getdropbox.com/">DropBox</a>.  DropBox is a service that syncs a directory on your various computers with each other and the DropBox server.  And one of the things it does is publish files in a certain directory as accessible from the web.   This simplifies my problem a lot:  All I need to do to have my own "No Paste" solution is simply have an easy way of getting text into a file on my hard drive and let the DropBox program automatically handle the "uploading" to a hosted service.</p>
+<p>So, below is the script I wrote to do that.  Features include:</p>
+<ul>
+<li>Using a web-safe version of the "MD5 hex" one way hash of the file contents as the filename.  This means that it's both unguessable unless you know what the text contains and reasonably guaranteed to be unique</li>
+<li>Taking input from STDIN or the system clipboard</li>
+<li>Printing out the URL that the text will be available at, and/or copying it to the clipboard, and/or displaying it in a <a href="http://growl.info/">Growl</a> message</li>
+</ul>
+<p><code>
+<pre>#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use 5.010;
+use autodie;
+use Path::Class qw(file dir);
+use Digest::MD5 qw(md5_base64);
+use Net::Growl qw(register notify);
+use Getopt::Std qw(getopt);
+
+########################################################################
+# config
+
+my $DROPBOX_ID = &quot;301667&quot;;
+my $GROWL_PASSWORD = &quot;shoutout&quot;;
+
+########################################################################
+
+# get the config options
+my %opt;
+getopt(&quot;&quot;,\%opt);
+
+# read the entire of STDIN / the files passed on the command line
+my $data = $opt{c}
+  ? read_clipboard()
+  : do { local $/; scalar &lt;&gt; };
+
+# work out the digest for it.  Covert the non url safe characters
+# to url safe characters
+my $uuid = md5_base64($data);
+$uuid =~ s{/}{-}g;
+$uuid =~ s{}{_}g;
+
+# copy the data to the new file
+open my $fh, &quot;&gt;:bytes&quot;,
+  file($ENV{HOME},&quot;Dropbox&quot;,&quot;Public&quot;,&quot;nopaste&quot;,&quot;$uuid.txt&quot;);
+print {$fh} $data;
+close $fh;
+
+# output the url that dropbox will make that file avalible at
+my $url = &quot;http://dl.getdropbox.com/u/$DROPBOX_ID/nopaste/$uuid.txt&quot;;
+say $url unless $opt{q};
+write_clipboard($url) if $opt{p};
+if ($opt{g}) {
+  my $message = &quot;shortly at $url&quot;;
+  $message .= &quot; (copied to clipboard)&quot; if $opt{p};
+  growl(&quot;Text Dropped&quot;, $message);
+}
+
+########################################################################
+
+# this is mac os X depenent.  I&#x27;d use the Clipboard module from CPAN
+# to make this system independent, but it fails tests.
+
+sub read_clipboard {
+  open my $pfh, &quot;-|&quot;, &quot;pbpaste&quot;;
+  local $/;
+  return scalar &lt;$pfh&gt;;
+}
+
+sub write_clipboard {
+  my $data = shift;
+  
+  open my $pfh, &quot;|-&quot;, &quot;pbcopy&quot;; 
+  print {$pfh} $data;
+  close $pfh;
+}
+
+sub growl {
+  my $title = shift;
+  my $description = shift;
+  
+  register(
+    application =&gt; &quot;droptxt&quot;,
+    password =&gt; $GROWL_PASSWORD,
+  );
+
+  notify(
+    application =&gt; &quot;droptxt&quot;,
+    password =&gt; $GROWL_PASSWORD,
+    title =&gt; $title,
+    description =&gt; $description,
+  );
+  
+}
+
+########################################################################
+
+__END__
+
+=head1 NAME
+
+droptxt - easily write text to a file in your public dropbox
+
+=head1 SYNOPSIS
+
+  # read from stdin
+  bash$ droptxt
+  this is some text
+  ^D
+  http://dl.getdropbox.com/u/301667/nopaste/4ZwSg8klsyBmhf9SKs-j5g.txt
+  
+  # read from a file
+  bash$ droptxt some_text.txt
+  http://dl.getdropbox.com/u/301667/nopaste/asdSDsq_asdQsasdw12s3d.txt
+  
+  # read from the clipboard
+  bash$ droptxt -c
+  http://dl.getdropbox.com/u/301667/nopaste/cssj12-22WWdsqQfxjpDDe.txt
+  
+  # also paste the url to the clipboard
+  bash droptxt -p some_text.txt
+  http://dl.getdropbox.com/u/301667/nopaste/asdSDsq_asdQsasdw12s3d.txt
+
+=head1 DESCRIPTION
+
+This is a command line utility that is designed to be used as an
+alternative to &quot;no paste&quot; utilities.  Instead of sending the input to a
+webserver it simply writes it to a location on your hard drive where the
+DropBox utility will syncronize it with the Dropox webservers.
+
+=head2 Options
+
+=over
+
+=item -c
+
+Copy the input from the system clipboard rather than from the usual
+location.
+
+=item -p
+
+Paste the url to the system clipboard.
+
+=item -g
+
+Announce the url via Growl
+
+=item -q
+
+Do not print the url to STDOUT
+
+=back
+
+=head1 AUTHOR
+
+Copyright Mark Fowler E&lt;lt&gt;mark@twoshortplanks.comE&lt;gt&gt; 2009. All rights reserved.
+
+This program is free software; you can redistribute it
+and/or modify it under the same terms as Perl itself.
+
+=head1 BUGS
+
+Doesn't wait for DropBox to sync the file.  The URL this creates may not be
+usable straight away!
+
+=head1 SEE ALSO
+
+L&lt;http://www.getdropbox.com&gt; for details on the service.
+
+L&lt;App::Nopaste&gt; for a utility that uses public &quot;no paste&quot; servers instead.
+
+=cut
+
+</pre>
+<p></code></p>

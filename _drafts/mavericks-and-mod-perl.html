@@ -1,0 +1,41 @@
+---
+layout: post
+title: Mavericks and mod_perl
+date: 
+type: post
+published: false
+status: draft
+categories:
+- '1'
+tags: []
+meta:
+  _edit_last: '9278756'
+  _wpcom_is_markdown: '1'
+author:
+  login: 2shortplanks
+  email: mark@twoshortplanks.com
+  display_name: 2shortplanks
+  first_name: Mark
+  last_name: Fowler
+---
+<p>So, I had an occasion to try and install mod_perl with a Perlbrew created perl (opposed to the system perl as supplied by apple.)</p>
+<p>It didn't work;  It failed tests rather terribly:</p>
+<p>Syntax error on line 205 of /Users/Mark/.cpanm/work/1398258436.64970/mod_perl-2.0.8/t/conf/httpd.conf:<br />
+Cannot load /Users/Mark/.cpanm/work/1398258436.64970/mod_perl-2.0.8/src/modules/perl/mod_perl.so into server:<br />
+dlopen(/Users/Mark/.cpanm/work/1398258436.64970/mod_perl-2.0.8/src/modules/perl/mod_perl.so, 10): Symbol not found:<br />
+ _modperl_handler_name</p>
+<p>Which is a funny way of saying "er, when I tried to load the mod_perl.so I couldn't find the _modperl_handler_name in it".</p>
+<p>I did some googling.  I read the pod inside mod_perl.  And then I had an inkling of what is going on.</p>
+<p>mod_perl uses a macro MP_INLINE to prefix certain functions so that when mod_perl is compiled they can be turned into inline functions (which are faster, but not linkable) in the situations where mod_perl is, say, compiled into the httpd itself.  For some reason this was happening when mod_perl was being compiled into mod_perl.so, which resulted in the "wtf" error above.</p>
+<p>So, I took a hatchet to the mod_perl source code.  And ripped out these lines from <code>src/modules/perl/modperl_common_util.h</code><br />
+<code><br />
+#ifdef MP_DEBUG<br />
+#define MP_INLINE<br />
+#else<br />
+#define MP_INLINE APR_INLINE<br />
+#endif<br />
+</code></p>
+<p>And replaced them with a simple:<br />
+<code><br />
+#define MP_INLINE<br />
+</code></p>

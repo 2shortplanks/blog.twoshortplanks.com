@@ -1,0 +1,152 @@
+---
+layout: post
+title: Having a Brew
+date: 2011-01-01 17:46:26.000000000 -05:00
+type: post
+published: true
+status: publish
+categories: []
+tags: []
+meta:
+  _edit_last: '9278756'
+  _oembed_94db03882a1e407f92f1137440cca2c8: '{{unknown}}'
+  _oembed_3a3699bd3c7e804e5474e3e9e76a42d6: '{{unknown}}'
+  _oembed_bcddc10ccd9374b43bc1ccd9da552f7d: '{{unknown}}'
+  _oembed_7947a9c3068839b765f8a5c7955358b9: '{{unknown}}'
+  _oembed_7ad31deb048987b81553346ab785158a: '{{unknown}}'
+  _oembed_9c09810692d1f00b4a3c34590ef3325b: '{{unknown}}'
+  _oembed_547b72c4982fafd25e638ed3268a8aee: '{{unknown}}'
+author:
+  login: 2shortplanks
+  email: mark@twoshortplanks.com
+  display_name: 2shortplanks
+  first_name: Mark
+  last_name: Fowler
+excerpt: Back in August in 2009 I wrote a post on how to install a release candidate
+  of Perl.  Installing a custom perl in your home directory has since got a lot easier
+  with perlbrew, and in this blog post I'll show the five commands needed to get a
+  new perl onto your system.
+---
+<p>Back in <a href="http://blog.twoshortplanks.com/2009/08/12/testing-perl-5-10-1-rc-1/">August in 2009</a> I wrote a post on how to install a release candidate of Perl.  Installing a custom perl in your home directory has since got a lot easier with perlbrew, and in this blog post I'll show the five commands needed to get a new perl onto your system.</p>
+<h2>A new perl in five commands</h2>
+<p>First I need to setup perlbrew.<br />
+This takes three commands (the latter two will be different on your system, but don&#039;t worry, in each case the previous command tells you what to do when you run it.)</p>
+<pre>   curl -L http://xrl.us/perlbrewinstall | bash
+   /Users/mark/perl5/perlbrew/bin/perlbrew init
+   echo &#062;&#062;~/.bashrc &#034;source /Users/mark/perl5/perlbrew/etc/bashrc&#034;</pre>
+<p>Now to install and switch to the latest development version of perl I only need type:</p>
+<pre>   perlbrew install perl-5.13.8
+   perlbrew switch perl-5.13.8</pre>
+<p>And to install and switch to the latest stable perl I only need to type:</p>
+<pre>   perlbrew install perl-5.12.2
+   perlbrew switch perl-5.12.2</pre>
+<h2>Again, in excruciating detail</h2>
+<p>If you&#039;re anything like me, you&#039;ve seen this kind of quickfire instructions on the web before and it leaves you with questions. Wouldn&#039;t it be nice if someone posted a complete dump of exactly what was going on when these commands are run? Yes, it would be...</p>
+<p>Let&#039;s start from the top again. First, download and install perlbrew with the one liner:</p>
+<pre>  travis-4:~ mark$ curl -L http://xrl.us/perlbrewinstall | bash</pre>
+<p>Off it goes:</p>
+<pre>    % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                   Dload  Upload   Total   Spent    Left  Speed
+  102   306  102   306    0     0    236      0  0:00:01  0:00:01 --:--:--  2756
+
+  ## Download the latest perlbrew
+
+  ## Installing
+  The perlbrew is installed as:
+
+      /Users/mark/perl5/perlbrew/bin/perlbrew
+
+  You may trash the downloaded /private/tmp/perlbrew from now on.
+
+  Next, if this is the first time you install perlbrew, run:
+
+      /Users/mark/perl5/perlbrew/bin/perlbrew init
+
+  And follow the instruction on screen.
+
+  ## Done. (automatically removes downloaded /tmp/perlbrew)</pre>
+<p>We&#039;d better follow its instructions, eh?</p>
+<pre>  travis-4:~ mark$ /Users/mark/perl5/perlbrew/bin/perlbrew init</pre>
+<p>This prints out some more stuff, including an instruction to modify our path:</p>
+<pre>  Perlbrew environment initiated, required directories are created under
+
+      /Users/mark/perl5/perlbrew
+
+  Well-done! Congratulations! Please add the following line to the end
+  of your ~/.bashrc
+
+      source /Users/mark/perl5/perlbrew/etc/bashrc
+
+  After that, exit this shell, start a new one, and install some fresh
+  perls:
+
+      perlbrew install perl-5.12.1
+      perlbrew install perl-5.10.1
+
+  For further instructions, simply run:
+
+      perlbrew
+
+  The default help messages will popup and tell you what to do!
+
+  Enjoy perlbrew at $HOME!!</pre>
+<p>Okay, let&#039;s modify our path to contain the instructions then:</p>
+<pre>  travis-4:~ mark$ echo &#062;&#062;~/.bashrc &#034;source /Users/mark/perl5/perlbrew/etc/bashrc&#034;</pre>
+<p>Now we need to restart bash. The easiest way to do that is to close the current terminal and open a new one (and stops us getting confused.) After this, installing a new Perl is a doddle, with just a single command.</p>
+<pre>  travis-4:~ mark$ perlbrew install perl-5.13.8</pre>
+<p>And it does all the hard work for us:</p>
+<pre>  Attempting to load conf from /Users/mark/perl5/perlbrew/Conf.pm
+  Fetching perl-5.13.8 as /Users/mark/perl5/perlbrew/dists/perl-5.13.8.tar.gz
+  Installing perl-5.13.8 into /Users/mark/perl5/perlbrew/perls/perl-5.13.8
+  This could take a while. You can run the following command on another shell to track the status:
+
+    tail -f /Users/mark/perl5/perlbrew/build.log
+
+  (cd /Users/mark/perl5/perlbrew/build; tar xzf /Users/mark/perl5/perlbrew/dists/perl-5.13.8.tar.gz;cd /Users/mark/perl5/perlbrew/build/perl-5.13.8;rm -f config.sh Policy.sh;sh Configure -de &#039;-Dprefix=/Users/mark/perl5/perlbrew/perls/perl-5.13.8&#039; &#039;-Dusedevel&#039;;make;make test &#038;&#038; make install) &#062;&#062; &#039;/Users/mark/perl5/perlbrew/build.log&#039; 2&#062;&#038;1 
+  Installed perl-5.13.8 as perl-5.13.8 successfully. Run the following command to switch to it.
+
+    perlbrew switch perl-5.13.8</pre>
+<p>So, as it says, we can switch which perl we&#039;re using just by using the &#034;perlbrew switch&#034; command:</p>
+<pre>  travis-4:~ mark$ perl -v
+
+  This is perl, v5.10.0 built for darwin-thread-multi-2level
+  (with 2 registered patches, see perl -V for more detail)
+
+  Copyright 1987-2007, Larry Wall
+
+  Perl may be copied only under the terms of either the Artistic License or the
+  GNU General Public License, which may be found in the Perl 5 source kit.
+
+  Complete documentation for Perl, including FAQ lists, should be found on
+  this system using &#034;man perl&#034; or &#034;perldoc perl&#034;.  If you have access to the
+  Internet, point your browser at http://www.perl.org/, the Perl Home Page.
+
+  travis-4:~ mark$ perlbrew switch perl-5.13.8
+  travis-4:~ mark$ perl -v
+
+  This is perl 5, version 13, subversion 8 (v5.13.8) built for darwin-2level
+
+  Copyright 1987-2010, Larry Wall
+
+  Perl may be copied only under the terms of either the Artistic License or the
+  GNU General Public License, which may be found in the Perl 5 source kit.
+
+  Complete documentation for Perl, including FAQ lists, should be found on
+  this system using &#034;man perl&#034; or &#034;perldoc perl&#034;.  If you have access to the
+  Internet, point your browser at http://www.perl.org/, the Perl Home Page.</pre>
+<p>We can switch back to the system perl with the &#034;perlbrew off&#034; command:</p>
+<pre>  travis-4:~ mark$ perlbrew off
+  travis-4:~ mark$ perl -v
+
+  This is perl, v5.10.0 built for darwin-thread-multi-2level
+  (with 2 registered patches, see perl -V for more detail)
+
+  Copyright 1987-2007, Larry Wall
+
+  Perl may be copied only under the terms of either the Artistic License or the
+  GNU General Public License, which may be found in the Perl 5 source kit.
+
+  Complete documentation for Perl, including FAQ lists, should be found on
+  this system using &#034;man perl&#034; or &#034;perldoc perl&#034;.  If you have access to the
+  Internet, point your browser at http://www.perl.org/, the Perl Home Page.</pre>
+<p>And that&#039;s about it. Very simple!</p>

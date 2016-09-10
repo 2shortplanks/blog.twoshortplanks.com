@@ -1,0 +1,112 @@
+---
+layout: post
+title: XML::Easy::ProceduralWriter
+date: 2009-11-16 20:45:55.000000000 -05:00
+type: post
+published: true
+status: publish
+categories:
+- '1'
+tags: []
+meta:
+  _edit_last: '9278756'
+author:
+  login: 2shortplanks
+  email: mark@twoshortplanks.com
+  display_name: 2shortplanks
+  first_name: Mark
+  last_name: Fowler
+excerpt: In this post I want to take a further look at writing code that outputs XML
+  with XML::Easy, and how the example from my previous blog entry can be improved
+  upon by using XML::Easy::ProceduralWriter.
+---
+<p>In this post I want to take a further look at writing code that outputs XML with XML::Easy, and how the example from <a href="http://blog.twoshortplanks.com/2009/11/09/xmleasy-by-example/">my previous blog</a> entry can be improved upon by using <a href="http://search.cpan.org/dist/XML-Easy-ProceduralWriter">XML::Easy::ProceduralWriter</a>.</p>
+<h2>What's wrong with the previous example?</h2>
+<p>When we left things in my previous post we were looking at this snippet of code that outputs a simple XML webpage:</p>
+<pre><code>tie my %hash, "Tie::IxHash",
+  "http://search.cpan.org/" =&gt; "Search CPAN",
+  "http://blog.twoshortplanks.com" =&gt; "Blog",
+  "http://www.schlockmercenary.com" =&gt; "Schlock",
+;
+
+my $root_element = xe("html",
+  xe("head",
+    xe("title", "My Links"),
+  ),
+  xe("body",
+    xe("h1", "Links"),
+    xe("ul",
+      map { xe("li", xe("a", { href =&gt; $_ }, $hash{$_}) ) } keys %hash
+    ),
+  ),
+);
+
+print {$fh} xml10_write_document($root_element);</code></pre>
+<p>The above code produces exactly the output we want, but it doesn't necessarily go about the best way of producing it.</p>
+<p>The first problem is that it's using Tie::IxHash to ensure that the keys of the hash (and thus the nodes in the resulting XML) come out in the right order rather than in a random order like traditional hashes.  Tied data structures are much slower than normal data structures and using this structure in this way is a big performance hit.  However in this case we have to tie because it's hard to write, in a readable way, the logic inline in the <code>map</code> statement to process a normal array two elements at a time.</p>
+<p>Which brings us onto the second problem, also related to the map statement - it's somewhat unwieldy to write and hard to read (you have to scan to the end of the line to work out that it's using the %hash for its keys.)  This only gets worse as you have to produce more complex XML and you try and use further (possibly nested) map statements and tertiary logic expressions to build up even more complex data structures - which is every bit as messy to do as it is to explain.</p>
+<p>Both issues stem from trying to build the XML::Easy::Element tree all in one go, essentially in one statement as a single assignment.  If we choose not to restrict ourselves in this way we can easily re-order the code to use a temporary variable and do away with both the tie and the map:</p>
+<pre><code>my @data = (
+  "http://search.cpan.org/" =&gt; "Search CPAN",
+  "http://blog.twoshortplanks.com" =&gt; "Blog",
+  "http://www.schlockmercenary.com" =&gt; "Schlock",
+);
+
+my @links;
+while (@data) {
+  my $url = shift @data;
+  my $text = shift @data;
+  push @links, xe("li", xe("a", { href =&gt; $url }, $text) );
+}
+
+my $root_element = xe("html",
+  xe("head",
+    xe("title", "My Links"),
+  ),
+  xe("body",
+    xe("h1", "Links"),
+    xe("ul", @links),
+  ),
+);
+
+print {$fh} xml10_write_document($root_element);</code></pre>
+<p>The problem with this solution is now we've ended up with code that's backwards.  We're creating the list elements and <em>then</em> creating the node that encloses them.  Now we have to read the bottom of the code to work out that we're creating a HTML document at all!</p>
+<h2>Introducing XML::Easy::ProceduralWriter</h2>
+<p>To solve this problem I wrote XML::Easy::ProceduralWriter, a module that allows you to write your code in a procedural fashion but without having to "code in reverse".</p>
+<p>Here's the above example re-written again, this time using XML::Easy::ProceduralWriter:</p>
+<pre><code>use XML::Easy::ProceduralWriter;
+
+print {$fh} xml_bytes {
+
+  element "html", contains {
+  
+    element "head", contains {
+      element "title", contains {
+        text "My Links";
+      };
+    };
+    
+    element "body", contains {
+      element "ul", contains {
+         my @data = (
+           "http://search.cpan.org/" =&gt; "Search CPAN",
+           "http://blog.twoshortplanks.com" =&gt; "Blog",
+           "http://www.schlockmercenary.com" =&gt; "Schlock",
+         );
+         
+         while (@data) {
+           element "li", contains {
+             element "a", href =&gt; shift @data, contains {
+               text shift @data;
+             };
+           };
+         }
+      };
+    };
+  };
+
+};</code></pre>
+<p>Using the module is straight forward.  You start by calling either <code>xml_element</code> (which returns an XML::Easy::Element) or <code>xml_bytes</code> (which returns a set of bytes you can print out) and inside these call you pass some code that generates XML elements and text.  Each element can 'contain' further code that produces sub-elements and text that element contains and so on.</p>
+<p>The key thing to notice is that unlike the previous examples where you were passing <em>data structures</em> into the functions here you're passing <em>code to be executed</em>.  This means you can place arbitrary logic in what you pass in and you're not limited to single statements.  For example, in the above code we declare variables in the middle of generating the XML.  The conceptual jump here is realising that neither what the blocks of code nor what <code>element</code> and <code>text</code> return isn't important, but the side effects of calling these two functions are.  The simplest way to think about it is to imagine the string being built up as the <code>element</code> and <code>text</code> statements are encountered in much the same way output is straight away printed to the filehandle when you use print (even though technically this isn't the case here - a full XML::Easy::Element object tree is always actually built in the background.)</p>
+<p>The <a href="http://search.cpan.org/dist/XML-Easy-ProceduralWriter/lib/XML/Easy/ProceduralWriter.pm">documentation</a> for XML::Easy::ProceduralWriter contains a reasonable tutorial that explains its usage in more detail, but it should be pretty straight forward from just reading the above code to jump straight in.</p>
+<p>And that's pretty much all I have to say about outputting XML with XML::Easy.  In my next post we'll look instead at advanced parsing and how to cope with documents with XML Namespace declarations.</p>

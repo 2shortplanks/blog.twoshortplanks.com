@@ -1,0 +1,59 @@
+---
+layout: post
+title: Let's have our cake and eat it too
+date: 2009-10-19 22:12:48.000000000 -04:00
+type: post
+published: true
+status: publish
+categories:
+- '1'
+tags: []
+meta:
+  _edit_last: '9278756'
+author:
+  login: 2shortplanks
+  email: mark@twoshortplanks.com
+  display_name: 2shortplanks
+  first_name: Mark
+  last_name: Fowler
+excerpt: One of the most difficult tradeoffs in language design is brevity verses
+  explicitness.  What does Java do better than Perl?  What should we steal?
+---
+<p>One of the most difficult tradeoffs in language design is brevity verses explicitness.  Having long names for methods, functions, variables and verbose patterns makes your code much clearer and less ambiguous.  To my mind there's nothing ambiguous about:</p>
+<p><code>
+<pre>System.out.println("Hello World");</pre>
+<p></code></p>
+<p>It's obviously printing a line to standard out and, at least as long as you associate "System" with "standard" in your head, there's no surprises lurking here.  This kind of explicitness is great.  It means anyone can read the code and bit by bit pick it apart to work out exactly what's happening (Oh...so there's a 'System' class....and look an 'out' property....and a 'println' method...)</p>
+<p>Of course, the problem with this level explicitness is that the verbosity it requires takes too long to write all the time unless you've got a super-charged macro based IDE.  And even then it faces a worse drawback: As the patterns get larger and the verbosity multiplies it gets harder to comprehend the overall picture.  Your eyes tends to glaze over after a day's protracted coding and the details start to become obscured.  For example in microcosm, the "System.out" is the least interesting bit of the above code, but it's the part of the statement my eyes are drawn to first.  Worse still, programmers tend to write the same number of lines of code no matter how verbose the programming language they tend to use is.  Those languages with more brevity therefore tend on the whole to get more done in those lines!</p>
+<p>Compare and contrast the above Java statement to the following Perl statement:</p>
+<p><code>
+<pre>say "Hello World"</pre>
+<p></code></p>
+<p>Much shorter, and much easier to read;  The eyes are drawn to the "Hello World" which is indeed the interesting part of the statement.  With much shorter statements and less wrapper code, the Perl users should be producing many more lines of code a day and beating the pants off the Java programmers.</p>
+<p>Well, this is <i>sometimes</i> true.  And, to be fair, often <i>not</i>.</p>
+<p>What was the tradeoff with brevity again?  Oh, yes...more ambiguity.  When does this strike?  In maintenance and what I like to call "pre-maintenance", the time you're developing the code yourself and if reaches the point it's too big to fit in your head.</p>
+<p>Consider the two examples above.  While the Java version is clearly printing to standard out, "say" is printing to the 'current file handle' which <i>almost</i> always is standard out.  Of course Perl people might consider this potential action at a distance to be a worthwhile abstraction layer.  Which really emphasises an important difference between the two languages.</p>
+<p>Perl and Java are essentially operating at about the same level of abstraction.  They're both a level above C, running on a virtual machine layer that has nice safety nets built in meaning things like memory allocation, array boundary checking, sorting algorithms, etc. are all taken care by the core language and API.  There's really little to separate the two languages, and they share more in common with each other than say, C and Prolog do, so it's more interesting to look at the small details that make the two languages different to one another.  The Perl and Java programmer have a lot to learn from one another.</p>
+<p>This difference in syntax philosophy is really interesting to me.  Perl's basic syntax typically allows you to express more in shorter space by exploiting what is known as <i>context</i>.  There's a lot of <em>implicit</em> things.  There's list or scalar context for example, or the current file handle, or there's the topic variables ($_, @_ et al) that are often used as default arguments for calls.  This either allows you to hold more in your head (because you worry about less because you can ignore the need to restate the context all the time) or hold a lot less (because the code isn't clear and you have to worry about what's in the hidden context all the time.)</p>
+<p>So in theory Perl allows you to express more in a line, but you can also get yourself in a mess a heck of a lot quicker.  It can be really easy for beginners to pick up Perl compared to Java because they aren't forced to deal with all the implicit stuff directly, but at the same time they're not aware of all the implicit things going so it can harder to deal with too;  A double edged sword.</p>
+<p>No wonder sometimes Perl is better than Java, and sometimes Java is better than Perl.</p>
+<p>The obvious thing that Perl and Java can do, in the grand tradition of langauge design,  is learn from each other's mistakes and steal the good bits from each other without (hopefully) picking up the bad bits.  Java stealing regular expressions and Perl stealing layered IO are good examples of worthwhile theft.</p>
+<p>So what would I change about Perl to take advantage of what Java teaches us?  Probably more than some people would like, and a lot less than others.</p>
+<p>As a way of example of what I would change I wrote is this particularly confusing chunk of code earlier in the week:</p>
+<p><code>
+<pre>sub log {
+  no warnings;
+  warn @_;
+}</pre>
+<p></code></p>
+<p><code>no warnings</code> immediately followed by <code>warn</code>?  Gah!  Of course, what I'm actually doing is suppressing all warnings that perl will generate (undefined values, printing of wide characters, etc) while it prints out my warnings message.  Very brief.  Different semantic domains entirely.</p>
+<p>So what do I think we should do to fix this?  Nothing.  This is just the pain of having a brief ambigious language: Sometimes you're just going to end up with what I dub "talking at semantic cross purposes" in your code.  I could suggest that we force people more explicit so it's clear what warnings I'm talking about in each case, but then I'd be changing the feel of the language.  I'm in no rush to recreate Java;  Java's a fine language and I know where it is when I want to use it.</p>
+<p>So what <em>would</em> I change? Ambiguity where there's genuine confusion due to overloading meaning of things.</p>
+<p>If you're paying a lot of attention in my example you'll notice that I'm <b>not</b> declaring something that's going to be used as a subroutine there, despite the <code>sub</code> keyword (because, obviously, without syntatic gymnastics you can't call a subroutine called <code>log</code> without calling the <code>log</code> built in function instead.)  In fact, the occasions where you want a method to be also be callable as a subroutine (or vice versa) are very thin.  So <b>this</b> is where I'd be more explicit and lose the unnecessary ambiguity be able to express the difference between a <i>function</i> and a <i>method</i>.  Like so:</p>
+<p><code>
+<pre>method log {
+  no warnings;
+  warn @_
+}</pre>
+<p></code></p>
+<p>Of course, that's exactly what some of the more radical extensions like <a href="http://search.cpan.org/dist/MooseX-Declare/">MooseX::Declare</a> allow you to do, and I'll talk more about that in a future blog entry.</p>
