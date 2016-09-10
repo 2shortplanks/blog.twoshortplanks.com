@@ -1,0 +1,49 @@
+---
+date: 2015-01-10 14:03:46
+layout: post
+title: Getting Choosy
+---
+Today I released a new version of <a href="https://metacpan.org/pod/Mac::Choose">Mac::Choose</a> which wraps the choose command line utility. Basically this lets you, from Perl, pop open a fuzzy match dialog like quicksilver, alfred, et al. This is probably best shown rather than explained:
+
+<pre><code>use Mac::Choose qw(choose);
+print choose qw(
+      red
+      orange
+      yellow
+      green
+      blue
+      indigo
+      violet
+) or die "User canceled selection";</code></pre>
+
+<a href="https://twoshortplanks.files.wordpress.com/2015/01/choose_example_demo.gif"><img class="alignnone size-full wp-image-415" src="https://twoshortplanks.files.wordpress.com/2015/01/choose_example_demo.gif" alt="choose_example_demo" width="660" height="357" /></a>
+
+The exciting thing about this release is that while previous versions required you to go to <a href="https://tinyrobotsoftware.com/choose/">Tiny Robot Software's website</a> to download a copy of <code>choose</code>, this version of Mac::Choose ships with the <code>choose</code> binary and installs a copy alongside the Perl module.
+
+<h2>Using File::ShareDir</h2>
+
+In order to handle the intallation of the binary in a place where my code could once again find it I altered my distribution to use the <a href="https://metacpan.org/pod/File::ShareDir">File::ShareDir</a> infrastructure. Essentially this infrastructure comes in two halves, an installer to install things in the shared dirctory and a module that can give you access to the files again.
+
+In my Module::Intall powered Makefile.PL in order to use <a href="https://metacpan.org/pod/Module::Install::Share">Module::Intall::Share</a> I simply had to add the line:
+
+<pre><code>install_share;</code></pre>
+
+This installs everything in the <code>share</code> directory of my distribution (which just contained one file, the <code>choose</code> binary) when you <code>make install</code>.
+
+The changes to my module were also very simple:
+
+<pre><code>use File::ShareDir qw(dist_file);
+our $executable_path = dist_file("Mac-Choose","choose");</code></pre>
+
+<h2>Testing</h2>
+
+After those changes, everything worked flawlessly...apart from the test suite! The problem is that until the module is installed the files aren't in the shared directory, and traditionally we test a module <i>before</i> we install them.
+
+This isn't insurmountable however, we just need to make some changes to our tests to quietly override File::ShareDir's functionality with that from <a href="https://metacpan.org/pod/Test::File::ShareDir">Test::File::ShareDir</a>:
+
+<pre><code>use File::Spec::Functions qw(:ALL);
+use FindBin;
+use Test::File::ShareDir (
+    -root =&gt; catdir($FindBin::Bin, updir),
+    -share =&gt; { -dist =&gt; { "Mac-Choose" =&gt; "share" } },
+);</code></pre>

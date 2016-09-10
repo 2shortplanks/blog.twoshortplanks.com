@@ -1,0 +1,55 @@
+---
+date: 2014-07-07 00:34:41
+layout: post
+title: 'Tell me more, tell me more'
+---
+A new version of <a href="https://metacpan.org/pod/Test::DatabaseRow">Test::DatabaseRow</a> has just escaped onto the CPAN, with a minor new feature <a href="https://metacpan.org/pod/Test::DatabaseRow#verbose_data">verbose data</a> to make working out what went wrong in the database test even easier when the worst happens
+
+
+In a nutshell this feature allows you to output in diagnostics all the results the database returned (not just listing the first thing that didn't match, which is the default thing <code>row_ok</code> does in a similar way to Test::More's <code>is_deeply</code> does.)
+
+
+In other words instead of writing this:
+
+<code>
+
+<pre>    all_row_ok(
+       table =&gt; "contacts",
+       where =&gt; [ cid =&gt; 123 ],
+       tests =&gt; [ name =&gt; "trelane" ],
+       <b>store_rows =&gt; \@rows</b>,
+       description =&gt; "contact 123's name is trelane"
+     ) <B>or diag explain \@rows</b>;</pre>
+
+</code>
+
+You can just write this:
+
+<code>
+
+<pre>    all_row_ok(
+       table =&gt; "contacts",
+       where =&gt; [ cid =&gt; 123 ],
+       tests =&gt; [ name =&gt; "trelane" ],
+       <b>verbose_data =&gt; 1</b>,
+       description =&gt; "contact 123's name is trelane"
+     );</pre>
+
+</code>
+
+Or even just write this:
+
+<code>
+
+<pre>    all_row_ok(
+       table =&gt; "contacts",
+       where =&gt; [ cid =&gt; 123 ],
+       tests =&gt; [ name =&gt; "trelane" ],
+       description =&gt; "contact 123's name is trelane"
+     );</pre>
+
+</code>
+
+And turn on verbosity from the command line when you run the tests
+
+<code><pre>TEST_DBROW_VERBOSE_DATA=1 perl mytest.pl</code></pre>

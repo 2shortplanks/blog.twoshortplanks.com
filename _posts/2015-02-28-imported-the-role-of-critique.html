@@ -1,0 +1,50 @@
+---
+date: 2015-02-28 14:16:47
+layout: post
+title: The Role of Critique
+---
+Over the last week I've been noodling with a minor improvement to Perl Critic to do with <i>private methods</i> and roles.
+
+Sometimes I write roles that are essentially importers for utility methods - methods that are essentially imported into the class but don't become part of the public interface.
+
+Here's an example of such a role, something that allows you to write <code>$self-&gt;_select("SELECT * FROM foo WHERE foo_id",123)</code> on any class that has a <code>dbh</code> attribute.
+
+<pre><code>package SuperProject::Role::WithSelect;
+
+use Moo::Role;
+
+requires 'dbh';
+
+sub _select {
+  my $self  = shift;
+  my $sql   = shift;
+  my @binds = @_;
+  return $self-&gt;dbh-&gt;selectall_arrayref( $sql, { Slice =&gt; {} }, @binds);
+}
+
+1;</code></pre>
+
+So what's the problem (aside from the fact that I should have been using DBIx::Class for the databse stuff?)
+
+<pre>bash$ perlcritic --verbose 10 SuperProject/Role/WithSelect.pm
+Private subroutine/method '_select' declared but not used at line 7, column 1.
+ Subroutines::ProhibitUnusedPrivateSubroutines (Severity: 3)
+   By convention Perl authors (like authors in many other languages)
+   indicate private methods and variables by inserting a leading underscore
+   before the identifier. This policy catches such subroutines which are
+   not used in the file which declares them.
+
+   This module defines a 'use' of a subroutine as a subroutine or method
+   call to it (other than from inside the subroutine itself), a reference
+   to it (i.e. `my $foo = \&amp;_foo'), a `goto' to it outside the subroutine
+   itself (i.e. `goto &amp;_foo'), or the use of the subroutine's name as an
+   even-numbered argument to `use overload'.</pre>
+
+Ooops. Perl::Critic is complaining about that private subroutine that's not used in the role class. I guess I could change the method name from <code>_select</code> to <code>select</code>, but I don't want <code>select</code> to become part of the public interface to the class that's consuming this role.
+
+Another option would be to use a <code>## no critic</code> declaration. But that's tedious, almost every role I write is going to be littered with extranious <code>## no critic</code> delcarations and that's often a sign that something is seriously wrong. What we need is some way to turn off <code>Subroutines::ProhibitUnusedPrivateSubroutines</code> for all our roles, but leave it on for everything else.
+
+And that's what I've been working on with help from Jeff Thalhammer over the last week. With the release of Perl::Critic that was <a href="https://metacpan.org/source/THALJEF/Perl-Critic-1.124/Changes">released today</a> you can tweak <code>Subroutines::ProhibitUnusedPrivateSubroutines</code> in your <code>perlcriticrc</code> to automatically turn itself off for a file if somewhere in that file you use a particular module, like, say, <code>Moo::Role</code>.
+
+<pre>[Subroutines::ProhibitUnusedPrivateSubroutines]
+skip_when_using = Moo::Role</pre>

@@ -1,0 +1,207 @@
+---
+date: 2010-07-10 07:56:08
+layout: post
+title: A Sub by Any Other Name
+---
+Since time immortal (or, at least, the release of Perl 5 over ten years ago) the standard way of declaring a method in Perl has to been to de clare a subroutine and manually extract the invocant and arguments from the special @_ variable.  In the last year or so however, this has been gradually been changing, with new modules from the CPAN providing alternative syntax.
+
+The <a href="http://search.cpan.org/dist/Devel-Declare/lib/Devel/Declare.pm">Devel::Declare</a> module has been the underpinnings of this work, a new module that allows module authors to hook Perl's lexer to do different things with the code as it's being parsed in and thus transform entirely new syntax into bytecode.
+
+Previous attempts to alter method calling had involved what are known as <i>source filters</i> - that is to say a hook to intercept the source code when it's read from disk and modify it before it was parsed.  The problem with this technique is that writing a program to alter Perl code is a very hard thing to do and (thanks to things like prototypes) is dependant on what code you've already compiled in this session.  This resulted in a alterations that had reasonable potential for quite nasty bugs as incorrect and unsafe modifications could be made.
+
+Devel::Declare, working in conjunction with the perl parser as it does, does not suffer from the same issues and allows new code to be able to be dynamically inserted that, once compiled, runs every bit as fast as if that code had been there in the first place.
+
+<h2>A Starting Point</h2>
+
+By way of an example we're going to be looking at a very basic method call that takes a couple of arguments and prints out some calculation on them.
+
+Here's the example in traditional "sub" based Perl 5 syntax:
+
+<pre><code>  package Reticulator;
+
+  sub reticulate_splines {
+    my $self = shift;
+    my ($number, $how_much) = @_;
+
+    print "Reticulating $number splines by " . $how_much * $self-&gt;multiplier, "\n";
+    return;
+  }</code></pre>
+
+This version of the code really doesn't have enough error checking, but I'll expand on this later in the examples.
+
+<h2>Method::Signatures::Simple</h2>
+
+The first, and most basic module I'm going to write about today is <a href="http://search.cpan.org/dist/Method-Signatures-Simple/lib/Method/Signatures/Simple.pm">Method::Signatures::Simple</a>.  In a nutshell it just allows us to re-write the above code as:
+
+<pre><code>  package Reticulator;
+  use Method::Signatures::Simple;
+  
+  method reticulate_splines($number, $how_much) {
+    print "Reticulating $number splines by " . $how_much * $self-&gt;multiplier . "\n";
+    return;
+  }</code></pre>
+
+As you can see <code>$self</code> is automatically extracted from <code>@_</code> along with any other variables we've placed in the brackets after the method name.
+
+You can ask the B::Deparse module to re-generate the equivalent code that perl thought it saw after Module::Signatures::Simple and Devel::Declare had their wicked way with it:
+
+<pre><code>  {
+    package Reticulator;
+    my $self = shift @_;
+    my($number, $how_much) = @_;
+    print "Reticulating $number splines by " . $how_much * $self-&gt;multiplier . "\n";
+    return;
+  }</code></pre>
+
+Ignoring the package cruft that B::Deparse always inserts, the code is identical to the version and runs just as fast.
+
+<h2>Method::Signatures</h2>
+
+One of the problems with Method::Signatures::Simple is while the code it effectively creates is no slower than the original traditional Perl, it's no better either! It's still just as buggy as the code we quickly wrote by hand, doing no input validation at all.  For example, what if we forget to pass any arguments:
+
+<pre><code>  $reticulator-&gt;reticulate_splines;
+  Use of uninitialized value $number in concatenation (.) or string at example.pl line 28.
+  Use of uninitialized value $how_much in multiplication (*) at example.pl line 28.
+  Reticulating  splines by 0</code></pre>
+
+Ugh! What we need is some form of error checking.  While we could add this with code in the body of our method, if we switch to using the less-simple module <a href="http://search.cpan.org/dist/Method-Signatures/lib/Method/Signatures.pm">Method::Signatures</a> we get this for 'free':
+
+<pre><code>  use Method::Signatures;
+
+  method reticulate_splines($number, $how_much) {
+    print "Reticulating $number splines by " . $how_much * $self-&gt;multiplier . "\n";
+    return;
+  }</code></pre>
+
+Now the $number and $how_much are required arguments, and not passing them gives me a proper exception:
+
+<pre><code>  $reticulator-&gt;reticulate_splines;
+  Reticulator::reticulate_splines() missing required argument $number at example2.pl line 51.</code></pre>
+
+And if we run the subroutine through B::Deparse we can see the equivalent code Module::Signature is creating for us:
+
+<pre><code>  {
+    package Reticulator;
+    my $self = shift @_;
+    Method::Signatures::required_arg('$number') unless @_ &gt; 0;
+    my $number = $_[0];
+    Method::Signatures::required_arg('$how_much') unless @_ &gt; 1;
+    my $how_much = $_[1];
+    print "Reticulating $number splines by " . $how_much * $self-&gt;multiplier . "\n";
+    return;
+  }</code></pre>
+
+This code is, of course, doing slightly more than the original code.  If we benchmark it we see it's slightly slower but not much - those extra unless statements are really cheap ops:
+
+Specifying those arguments aren't required with question marks so they are considered optional again like so...
+
+<pre><code>  package Reticulator;
+  use Method::Signatures;
+
+  method reticulate_splines($number?, $how_much?) {
+    print "Reticulating $number splines by " . $how_much * $self-&gt;multiplier . "\n";
+    return;
+  }</code></pre>
+
+Causes those if statments to be removed from the equivalent code to what Method::Signature::Simple generates:
+
+<pre><code>  {
+    package Reticulator;
+    my $self = shift @_;
+    my $number = $_[0];
+    my $how_much = $_[1];
+    print "Reticulating $number splines by " . $how_much * $self-&gt;multiplier . "\n";
+    return;
+  }</code></pre>
+
+This is about the same speed (slightly faster or slightly slower, depending on the
+exact version of perl you're running, since it uses scalar rather than list assignment) as the original example.
+
+<h2>Named Parameters</h2>
+
+One of the other things that Method::Signatures gives us over the simplistic
+Method::Signatures::Simple is the use of <i>named parameters</i>.  That is to say
+we can write this:
+
+<pre><code>  package Reticulator;
+  use Method::Signatures;
+
+  method reticulate_splines(:$number, :$how_much) {
+    print "Reticulating $number splines by " . $how_much * $self-&gt;multiplier . "\n";
+    return;
+  }</code></pre>
+
+And then call it like this:
+
+<pre><code>  $reticulator-&gt;reticulate_splines( number =&gt; 10, how_much =&gt; 5 );</code></pre>
+
+B::Deparse tells us this compiles into the same thing as if we'd written:
+
+<pre><code>  {
+    package Reticulator;
+    my $self = shift @_;
+    my(%args) = @_[0 .. $#_];
+    my $number = delete $args{'number'};
+    my $how_much = delete $args{'how_much'};
+    Method::Signatures::named_param_check(\%args);
+    print "Reticulating $number splines by " . $how_much * $self-&gt;multiplier . "\n";
+    return;
+  }</code></pre>
+
+The extra readability and error checking comes at a significant cost - we've suddenly
+got another subroutine subroutine call being made (this slows things down significantly.)
+
+<h2>MooseX::Declare</h2>
+
+There's still things we can do to produce incorrect output with the level of validation that Method::Signatures is giving us.  For example, we can call the method with strings rather than the numbers we're meant to be dealing with and get garbage out:
+
+<pre><code>  $reticulator-&gt;reticulate_splines( number =&gt; "all", how_much =&gt; "lots" );
+  Argument "lots" isn't numeric in multiplication (*) at example3.pl line 29.
+  Reticulating all splines by 0</code></pre>
+
+To add type checking to our arguments, we need to move onto using another module <a href="http://search.cpan.org/dist/MooseX-Declare/lib/MooseX/Declare.pm">MooseX::Declare</a> that, amongst other syntactic sugar improvements, brings the power of the Moose framework and its type hand to bear on the arguments list.
+
+<pre><code>  use MooseX::Declare;
+  
+  class Reticulator {
+    method reticulate_splines(Int :$number!, Int :$how_much!) {
+      print "Reticulating $number splines by " . $how_much * $self-&gt;multiplier . "\n";
+      return;
+    }
+  }</code></pre>
+
+There are several changes in the above example compared to those above it.  The most obvious is the class keyword - this replaces the package keyword and other boilerplate like "use Moose", "use strict", "use warnings", and "use namespace::clean".
+
+The next thing we've done is to fix the error that we allowed in the previous example: We've added "Int" type constraints (using Moose's type system) to ensure that the numbers we pass in really are integers.  Finally we've added the trailing "!" to the variable names that mean "and make this manditory".
+
+This now explodes with a plethora of debug info if we pass it garbage:
+
+<pre><code>  $obj-&gt;reticulate_splines_with_print(number =&gt; "all", how_much =&gt; "lots");
+  Validation failed for 'Tuple[Tuple[Object],Dict[number,Int,how_much,Int]]' with value
+  [ [ Reticulator=HASH(0x100cfc6b0) ], { how_much: "lots", number: "all" } ],
+  Internal Validation Error is: 
+     [+] Validation failed for 'Dict[number,Int,how_much,Int]' with value
+       { how_much: "lots", number: "all" }
+     [+] Validation failed for 'Int' with value all at
+        /Library/Perl/5.10.0/MooseX/Method/Signatures/Meta/Method.pm line 429</code></pre>
+
+The belts and braces however come at a significant cost over the raw subroutine call we started with however.  The reasons for this can only be hinted at by the equivalent code that B::Deparse shows us for MooseX::Declare.  A lot of the validation is handled by completely separate method calls not
+even listed here:
+
+<pre><code>  {
+    package MooseX::Method::Signatures::Meta::Method;
+    use warnings;
+    use strict 'refs';
+    @_ = ${$self;}-&gt;validate(\@_);
+    $actual_body ||= ${$self;}-&gt;actual_body;
+    goto \
+  }</code></pre>
+
+MooseX::Declare gives us a lot more functionality than just shown in the above example though - you can define extra on the inline validation routines, default values, and even coercion routines for turning one data type into the data type you needed (e.g. stringifying a DateTime object.)  If you use this functionality, the slowdowns are often worth it.
+
+<h2>Conclusion</h2>
+
+You can see from the above examples there's a range of options that allow you to write much more expressive code than using the old and cumbersome "sub" keyword.  It's possible to use these techniques so that there's no run time costs, and it's possible to use these techniques to do a whole host complex input validation.  It's not possible however, just like if you'd written the code by hand, to get both at the same time.
+
+<a href="http://en.wikipedia.org/wiki/There_ain't_no_such_thing_as_a_free_lunch">TANSTAAFL</a>, but at least there's a choice on the menu now.
+

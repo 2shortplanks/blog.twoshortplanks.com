@@ -1,0 +1,101 @@
+---
+date: 2012-01-20 09:28:08
+layout: post
+title: Frac'ing your HTML
+---
+<p>In my <a href="http://blog.twoshortplanks.com/2012/01/13/entities/">previous</a> blog entry I talked about encoding weird characters into HTML entities. In this entry I&#8217;m going to talk about converting some patterns of ASCII - dumb ways of writing fractions - and turning them into HTML entities or Unicode characters.</p>
+
+<h2 id="heygoodlookingwhatscooking">Hey Good Looking, What&#8217;s Cooking?</h2>
+
+<p>Imagine a simple recipe:</p>
+
+<pre><code>&lt;ul&gt;
+   &lt;li&gt;1/2 cup of sugar&lt;/li&gt;
+   &lt;li&gt;1/2 cup of spice&lt;/li&gt;
+   &lt;li&gt;1/4 cup of all things nice&lt;/li&gt;
+&lt;/ul&gt;
+</code></pre>
+
+<p>While this is nice, <em>we can do better</em>. There&#8217;s nice Unicode
+characters for &#188;, &#189; and corresponding HTML entities that we can use to have the browser render them for us. What we need is some way to change all our mucky ASCII into these entities. Faced with this problem on his <a href="http://astray.com/recipes">recipes</a> site European Perl Hacker Léon Brocard wrote a module called <a href="http://metacpan.org/module/HTML::Fraction">HTML::Fraction</a> that could tweak strings of HTML.</p>
+
+<pre><code>use HTML::Fraction;
+my $frac = HTML::Fraction-&gt;new();
+my $output = $frac-&gt;tweak($string_of_html);
+</code></pre>
+
+<p>This module creates output like:</p>
+
+<pre><code>&lt;ul&gt;
+   &lt;li&gt;&amp;frac12; cup of sugar&lt;/li&gt;
+   &lt;li&gt;&amp;frac12; cup of spice&lt;/li&gt;
+   &lt;li&gt;&amp;frac14; cup of all things nice&lt;/li&gt;
+&lt;/ul&gt;
+</code></pre>
+
+<p>Which renders nicely as:</p>
+
+<ul>
+   <li>&#189; cup of sugar</li>
+   <li>&#189; cup of spice</li>
+   <li>&#188; cup of all things nice</li>
+</ul>
+
+<p>HTML::Fraction can even cope with decimal representation in your string. For example:</p>
+
+<p><ul>
+ <li>0.5 slugs</li>
+ <li>0.67 snails</li>
+ <li>0.14 puppy dogs tails</li>
+ </ul></p>
+
+<p>Processed with HTML::Fraction renders like so:</p>
+
+<ul><li>&#188; slugs</li><li>&#8532; snails</li><li>&#8528; puppy dogs tails</li></ul>
+
+<h2 id="unicodecharactersinstead">Unicode Characters Instead</h2>
+
+<p>Of course, we don&#8217;t <em>always</em> want to render out HTML. Sometimes we just want a plain old string back. Faced with this issue myself, I wrote a quick subclass called <a href="http://metacpan.org/module/String::Fraction">String::Fraction</a>:</p>
+
+<pre><code>use String::Fraction;
+my $frac = String::Fraction-&gt;new();
+my $output = $frac-&gt;tweak($string);
+</code></pre>
+
+<p>The entire source code of this module is short enough that I can show you it here.</p>
+
+<pre><code>package String::Fraction;
+use base qw(HTML::Fraction);
+
+use strict;
+use warnings;
+
+our $VERSION = &quot;0.30&quot;;
+
+# Our superclass sometimes uses named entities
+my %name2char = (
+  '1/4'  =&gt; &quot;\x{00BC}&quot;,
+  '1/2'  =&gt; &quot;\x{00BD}&quot;,
+  '3/4'  =&gt; &quot;\x{00BE}&quot;,
+);
+
+sub _name2char {
+  my $self = shift;
+  my $str = shift;
+
+  # see if we can work from the Unicode character
+  # from the entity returned by our superclass
+  my $entity = $self-&gt;SUPER::_name2char($str);
+  if ($entity =~ /\A &amp;\#(\d+); \z/x) {
+    return chr($1);
+  }
+
+  # superclass doesn't return a decimal entity?
+  # use our own lookup table
+  return $name2char{ $str }
+}
+</code></pre>
+
+<p>We simply override one method <code>_name2char</code> so that instead of returning a HTML entity we
+return corresponding Unicode character.</p>
+

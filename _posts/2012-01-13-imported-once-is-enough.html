@@ -1,0 +1,150 @@
+---
+date: 2012-01-13 19:57:40
+layout: post
+title: Once is Enough
+---
+<p>In this blog post I discuss how HTML entities work, how to encode them with Perl, and how to detect when you&#8217;ve accidentally double encoded your entities with my module Test::DoubleEncodedEntities.</p>
+
+<h2 id="howhtmlentitieswork">How HTML Entities work</h2>
+
+<p>In HTML you can represent any character in simple ASCII by using <em>entities</em>. These come in two forms, either using the decimal codepoint of the character or, for some frequently used characters more readable human <em>named entities</em></p>
+
+<table>
+<tr><th>Character</th><th>Unicode codepoint</th><th>Decimal Entity</th><th>Named Enitity</th></tr>
+<tr><td>&eacute;</td><td>233</td><td>&#233;<td>&amp;eacute;</td></tr>
+<tr><td>&copy;</td><td>169</td><td>&#169;<td>&amp;copy;</td></tr>
+<tr><td>&#9731;</td><td>9731</td><td>&#9731;<td><em>none</em></td></tr>
+<tr><td>&lt;</td><td>60</td><td>&#060;<td>&amp;lt;</td></tr>
+<tr><td>&amp;</td><td>38</td><td>&#038;<td>&amp;amp;</td></tr>
+</table>
+
+<p>So instead of writing</p>
+
+<p><code><pre>&lt;!DOCTYPE html&gt;
+&lt;html&gt;&lt;body&gt;&copy; 2012 Mark Fowler&lt;/body&gt;&lt;/html&gt;</pre></code></p>
+
+<p>You can write</p>
+
+<p><code><pre>&lt;!DOCTYPE html&gt;
+&lt;html&gt;&lt;body&gt;&amp;copy; 2012 Mark Fowler&lt;/body&gt;&lt;/html&gt;</pre></code></p>
+
+<p>By delivering a document in ASCII and using entities for any codepoints above 127 you can ensure that even the most broken of browsers will render the right characters.</p>
+
+<p>Importantly, when an entity is converted back into a character by the browser the character no longer has any of its special meaning, so you can use encoding to escape sequences that would otherwise be considered markup. For example:</p>
+
+<pre><code>&lt;!DOCTYPE html&gt;
+&lt;html&gt;&lt;body&gt;say &quot;yep&quot;
+  if $ready &amp;amp;&amp;amp; $bad &amp;lt; $good;
+&lt;/body&gt;&lt;/html&gt;
+</code></pre>
+
+<p>Correctly renders as</p>
+
+<pre><code>say &quot;yep&quot; if $ready &amp;&amp; $bad &lt; $good;
+</code></pre>
+
+<h2 id="encodingentitieswithperl">Encoding Entities with Perl</h2>
+
+<p>The go-to module for encoding and decoding entities is <a href="http://metacpan.org/module/HTML::Entities">HTML::Entities</a>. Its use is simple: You pass the string you want to encode into the <code>encode_entities</code> function and it returns the same string with the entities encoded:</p>
+
+<pre><code>use HTML::Entites qw(encode_entities);
+
+my $string = &quot;\x{a9} Mark Fowler 2012&quot;;
+my $encoded = encode_entities($string);
+say &quot;&lt;!DOCTYPE html&gt;&quot;
+say &quot;&lt;html&gt;&lt;body&gt;$encoded&lt;/body&gt;&lt;/html&gt;&quot;;
+</code></pre>
+
+<p>If you no longer need the non-encoded string you can have HTML::Entities modify the string you pass to it by not assigning the output to anything (HTML::Entities is smart enough to notice it&#8217;s being called in <em>void context</em> where its return value is not being used.)</p>
+
+<pre><code>use HTML::Entites qw(encode_entities);
+
+my $string = &quot;\x{a9} Mark Fowler 2012&quot;;
+encode_entities($string);
+say &quot;&lt;!DOCTYPE html&gt;&quot;
+say &quot;&lt;html&gt;&lt;body&gt;$string&lt;/body&gt;&lt;/html&gt;&quot;;
+</code></pre>
+
+<h2 id="thedoubleencodingproblem">The Double Encoding Problem</h2>
+
+<p>The trouble with encoding HTML entities is that if you do it a second time then you end up with nonsensical looking text. For example </p>
+
+<pre><code>use HTML::Entites qw(encode_entities);
+
+my $string = &quot;\x{a9} Mark Fowler 2012&quot;;
+encode_entities($string);
+encode_entities($string);
+say &quot;&lt;!DOCTYPE html&gt;&quot;
+say &quot;&lt;html&gt;&lt;body&gt;$string&lt;/body&gt;&lt;/html&gt;&quot;;
+</code></pre>
+
+<p>Outputs</p>
+
+<pre><code>&lt;!DOCTYPE html&gt;
+&lt;hmtl&gt;&lt;body&gt;&amp;amp;copy; Mark Fowler 2012&lt;/body&gt;&lt;/html&gt;
+</code></pre>
+
+<p>Which when rendered by the browser displays</p>
+
+<pre><code>&amp;copy; Mark Fowler 2012
+</code></pre>
+
+<p>As the <code>&amp;amp;</code> has turned into <code>&amp;</code> but <strong>isn&#8217;t</strong> then combind with the <code>copy;</code> to turn it into the copyright symbol &copy;.</p>
+
+<p>Each subsequent encoding turns the <code>&amp;</code> at the start of the entity into <code>&amp;amp;</code>, including those at the start of any previously created <code>&amp;amp;</code>. Do this ten or so times and you end up with:</p>
+
+<pre><code>&amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;copy; Mark Fowler 2012
+</code></pre>
+
+<p>The obvious solution is to make sure you encode the entities only once! But that&#8217;s not as easy as it might seem. If you&#8217;re building your output up from multiple processes it&#8217;s quite easy to mistakenly encode twice; Worse, if you&#8217;re using data that you don&#8217;t control (for example, extracted from a web page, downloaded from a feed, imported from a user) you might find that some or more of it had unexpectedly already been encoded.</p>
+
+<h2 id="testingfortheproblem">Testing for the Problem</h2>
+
+<p>I recently re-released my module <a href="http://metacpan.org/module/Test::DoubleEncodedEntities">Test::DoubleEncodedEntities</a> that can be used to write automated tests for double encoding.</p>
+
+<pre><code>use Test::More tests =&gt; 1;
+use Test::DoubleEncodedEntities;
+ok_dee($string, &quot;check for double encoded entities&quot;);
+</code></pre>
+
+<p>It works <em>heuristically</em> by looking for strings that could possibly be double encoded entities. Obviously there&#8217;s lots of HTML documents out there where it&#8217;s perfectly legitimate to have double encoded entities: any of them talking about entity encoding, such as this blog post itself, will naturally do do. However, the vast majority - where you control the input - will not have these format of strings and we can test for them.</p>
+
+<p>For example:</p>
+
+<pre><code>use Test::More tests =&gt; 6;
+use Test::DoubleEncodedEntities;
+
+ok_dee(&quot;&amp;copy; Mark Fowler 2012&quot;,     &quot;should pass&quot;);
+ok_dee(&quot;&amp;amp;copy; Mark Fowler 2012&quot;, &quot;should fail&quot;);
+ok_dee(&quot;&#038;copy; Mark Fowler 2012&quot;, &quot;should fail&quot;);
+ok_dee(&quot;&#169; Mark Fowler 2012&quot;,     &quot;should pass&quot;);
+ok_dee(&quot;&amp;amp;#169; Mark Fowler 2012&quot;, &quot;should fail&quot;);
+ok_dee(&quot;&#038;#169; Mark Fowler 2012&quot;, &quot;should fail&quot;);
+</code></pre>
+
+<p>Produces the output:</p>
+
+<pre><code>1..6
+ok 1 - should pass
+not ok 2 - should fail
+#   Failed test 'should fail'
+#   at test.pl line 5.
+# Found 1 &quot;&amp;amp;copy;&quot;
+not ok 3 - should fail
+#   Failed test 'should fail'
+#   at test.pl line 6.
+# Found 1 &quot;&#038;copy;&quot;
+ok 4 - should pass
+not ok 5 - should fail
+#   Failed test 'should fail'
+#   at test.pl line 8.
+# Found 1 &quot;&amp;amp;#169;&quot;
+not ok 6 - should fail
+#   Failed test 'should fail'
+#   at test.pl line 9.
+# Found 1 &quot;&#038;#169;&quot;
+# Looks like you failed 4 tests of 6.
+</code></pre>
+
+<p>Correctly detecting the double encoded entities in the <code>should fail</code> tests</p>
+

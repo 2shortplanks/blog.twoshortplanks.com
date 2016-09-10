@@ -1,0 +1,33 @@
+---
+date: 2015-01-27 13:45:06
+layout: post
+title: Critical Hit
+---
+Last night I braved <a href="http://en.wikipedia.org/wiki/January_2015_nor%27easter">Winter Storm Juno</a> to venture out to Albany Perl Mongers' technical meeting in East Greenbush.  Our special guest star Jeff Thalhammer had agreed to teleconference in from San Francisco to talk us through <a href="http://metacpan.org/pod/Perl::Critic">Perl::Critic</a>.  This arrangement worked pretty well for us, with Jeff able to chat with the small number of us that had braved the storm and answer our questions. The only flaw with the setup was Jeff wasn't able to try the pokemon cupcakes I'd baked. Bring on cupcake-over-ip technology is what I say.
+
+I've been using Perl::Critic for many years now, and I wasn't sure I would get much out of the technical meeting, but I was very wrong. Jeff was able to give several tips, answer questions, and point out a bunch of improvements that I was unaware of since I first started using Perl::Critic years ago.
+
+<h3>only</h3>
+
+The biggest win for me was learning about using the <a href="https://metacpan.org/pod/distribution/Perl-Critic/bin/perlcritic#only">only</a> option directly in a <code>.perlcriticrc</code> itself. This allows you to only run the rules specified in the critic file rather than any installed rules and is awesome for continuous integration test suites running off our in-house <code>.perldcriticrc</code> because if a new rule gets installed (due to an update our distribution dependencies) we don't start automatically using it (and failing it) without some sort of review.
+
+<h3>verbose</h3>
+
+The various levels of verbose output that Perl::Critic's <a href="https://metacpan.org/pod/distribution/Perl-Critic/bin/perlcritic#verbose">verbose</a> options now provides are very helpful. Bumping the output to level 8 (with <code>--verbose=8</code>) helpfully tells you the name of the policy that you're violating, which is useful if you want to disable it with a <code>## no critic (...)</code>, or tweak the <code>.perlcriticrc</code> or simply read the documentation for the module so you can better understand what the policy is complaining about
+
+<h3>profile-proto</h3>
+
+My ancient personal <code>.perlcriticrc</code> file is getting a bit long in the tooth. Not only has my coding style changed over the many years as I've learned more about Perl, but Perl::Critic itself has improved introducing new policies both in the core distribution and on the CPAN itself. This is why I was excited to learn about the <a href="https://metacpan.org/pod/distribution/Perl-Critic/bin/perlcritic#profile-proto">profile-proto</a> which can spit out a fully-documented default <code>.perlcriticrc</code>
+
+<h3>Let's Go Shopping</h3>
+
+Jeff took us on a brief <i>shopping tour</i> of the CPAN to show us some of the cool new policies that are available. Some standouts include:
+
+<ul>
+    <li><a href="https://metacpan.org/pod/Perl::Critic::Moose">Perl::Critic::Moose</a> are a bunch of policies for dealing with Moose classes Dave Rolsky just released.</li>
+    <li><a href="https://metacpan.org/pod/Perl::Critic::Tics">Perl::Critic::Tics</a> and and <a href="https://metacpan.org/pod/Perl::Critic::Bangs">Perl::Critic::Bangs</a> are a bunch of things that bother Ricardo Signes and Andy Lester that are worth looking at.</li>
+</ul>
+
+<h2>Thanks</h2>
+
+Thanks to both Jeff for taking the time to talk to us, and to Patrick Cronin for once again organising the meeting, providing pizza and all the other thankless stuff he does to organise our meetings.

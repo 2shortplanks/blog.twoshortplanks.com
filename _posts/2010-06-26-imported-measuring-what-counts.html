@@ -1,0 +1,59 @@
+---
+date: 2010-06-26 08:53:26
+layout: post
+title: Measuring what counts
+---
+So, how long does it take your webserver to generate pages?
+
+This seemingly simple question is actually a lot more complicated than it might sound, and there's several ways to answer it, depending, I guess, on what question you're actually asking, and the reason you're asking it.
+
+The simplest way to answer this is to fire up your web browser¹ and look that the pretty graphs showing how long it took to actually load some pages that you have determined as 'typical'.  Using a real web brower to do the timings is the most accurate representation of what a user actually sees because it properly accounts for loading all the other bits of the page, all of which might be very slow and block the actual rendering of the page and actually be the most significant delay the user sees².
+
+The problem with this approach is that it's not a very consistent method.  Each time you do it you're going to get slightly different results back as various caches are charged and emptied and depending on what else the server is doing at the time.
+
+One way to answer this is to use a tool like Selenium to do the same request with your browser several times and average the result.  Another, more basic, approach is to run a tool like ab (apache bench) or Perl's own LWP to generate a lot of requests for the main HTML file.  Either of these techniques is a lot better than the one off measurement, but still gives you different results at different times of the day, days of the week, or time in the year (for example, the servers might be more loaded during weekday nights than at three am on a sunday morning.)
+
+Worse still, the servers might be influenced by what you're doing.  You're not following typical user behaviour (you're creating a bunch of extra requests for a subset of pages) and maybe you're now loading the servers in a different way to the normal distribution of traffic and skewing your results.
+
+One of the things I've started doing is looking at the performance of websites as a whole rather than the performance of the bits of the site I'm manually measuring.  This is a totally different approach: Instead of creating requests and monitoring how long it takes for them to return in the client, I'm logging on the server details all about requests actual user activity creates and then summarising that.
+
+The advantage in this approach is that it's directly measuring the thing that you actually care about: The time it takes to get a response to the user in the actual conditions that they're making these requests.  When you do this you'll often be surprised about what's actually slowing down the site - sometimes what seems like a very quick page when called in isolation can turn out to be a big resource hog if it's called a large number of times by your users.
+
+One of the things you'll notice when recording details of your site is that it's really easy to get mixed up about two things
+
+  1. Working out how long the user has to wait for given pages so that you can gauge if user experience is acceptable for those page requests
+
+  2. Working out what pages are taking up the most resources so that pages that you can work out what's slowing down your site.
+
+This is really easy because as soon as your site starts bottlenecking on something (memory, CPU, database activity...) everything will start to seem slow, and it can be hard to work out what the thing that's doing the delaying and the thing that's being delayed is.
+
+In order to work this out you need to go beyond the wallclock seconds that you're recording to work out how slow your user experience is and move onto recording how much resource each request is taking up.
+
+There are various techniques for this, each more complicated and precise that the one before, but starting at a gross level will allow you work out which bit you should be concentrating on.  Measuring memory used with mod_perl can be as simple as using Apache::SizeLimit:
+
+  my ($start_size, $start_shared) = $Apache2::SizeLimit::HOW_BIG_IS_IT-&gt;();
+  ...
+  my ($end_size, $end_shared) = $Apache2::SizeLimit::HOW_BIG_IS_IT-&gt;();
+  print {$log_fh} "That request grew us by @{[ $end_size - $size_size ]}",
+                  "(@{[ $end_shared - $start_shared ]}) shared\n";
+
+Measuring CPU can be as simple as recoding the number of ticks used:
+
+  use POSIX ();
+  my ($start_r, $start_u, $start_s) = POSIX::times();
+  ...
+  my ($end_r, $end_u, $end_s) = POSIX::times();
+  print {$log_fh} "Took @{[ $end_u $start_u ]} user ticks and ",
+                  "@{[ end_s - $start_u ]} system ticks\n"
+
+Measuring your database is a little more tricky.  I'd suggest simply monitoring the wallclock seconds each database request takes (accurately, with Time::HiRes) and using this as a starting point on which requests are slow, but this won't alone tell you why the slowdowns are (you'll need to do something like perodically caputuring the output of "SHOW FULL PROCESSLIST" or its ilk in order to detect what's locking on what.)
+
+Once you've got these gross levels recorded in your you can dive in in more detail in your staging environment where you can add vastly more instrumentation on the pages that are slowing down your site in order to work out exactly why those pages are using so much resources.
+
+Happy hunting!
+
+<hr>
+
+¹ And because this is your web browser, you're using something modern like a WebKit based brower or Firefox with Firebug, or even Opera or the I.E. 9 beta, right?
+
+² If you haven't read <a href="http://www.amazon.co.uk/High-Performance-Web-Sites-Essential/dp/0596529309">High Performance Websites</a> and the explanation of why this is, you should stop reading this blog post now and go overnight a copy.

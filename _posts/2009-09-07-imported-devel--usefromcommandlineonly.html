@@ -1,0 +1,46 @@
+---
+date: 2009-09-07 11:00:31
+layout: post
+title: Devel::UseFromCommandLineOnly
+---
+On Friday I <a href="http://blog.twoshortplanks.com/2009/09/04/testenhancedis/">posted</a> a horrible chunk of code to my blog.  With all the scorn I threw about it there's one bit I didn't cover however, a sort of saving grace.  The second line here:
+
+<code><pre>package Test::EnhancedIs;
+use base qw(Devel::UseFromCommandLineOnly);</pre></code>
+
+Devel::UseFromCommandLineOnly?  What the heck is that, and why am I subclassing it?  Well, that, boys and girls, is another quick module I knocked up while butchering the internals of Test::Builder.
+
+You see, I wrote Test::EnhancedIs as a proof of concept that I knew would very likely break just as soon as someone changed Test::Builder in the slightest.  I'm offering it as unsupported experimental code, but even I know no sooner had I typed those warning words that someone else was busy typing
+
+<code><pre>#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use Test::More tests =&gt; 1;
+use Test::EnhancedIs;  # whooo, easier tests
+
+use Sharks;
+is(Sharks-&gt;armed,"frickin' laser beams");</pre></code>
+
+And committing it to their version control system.  I know what'll happen next is that that person or their coworkers, months down the line when this inevitably breaks, will hunt me or the hardworking geniuses that maintain Test::Builder down to blame us for <i>breaking their code</i>.
+
+So I decided to not let that happen.  If you run the above code it outputs:
+
+<code><pre>bash$ perl test.t
+1..1
+Invalid use of Test::EnhancedIs in 'test.t' at line 7; This module can only be loaded from the command line at test.t line 7</pre></code>
+
+Yep, that's Devel::UseFromTheCommandLineOnly kicking in and hitting you with the cluestick.  However, if you remove line 7 from the above example and run the test loading the extra module from the command line like so:
+
+<code><pre>travis-4:~ mark$ perl -MTest::EnhancedIs test.t 
+1..1
+not ok 1
+#   Failed test at test.t line 9.
+#          got: 'frickin' <span style="color:white;background:red;">*</span>sharp teeth'
+#     expected: 'frickin' <span style="color:white;background:red;">*</span>laser beams'
+# Looks like you failed 1 test of 1.</pre></code>
+
+Everything is dandy.
+
+Devel::UserFromCommandLineOnly is on <a href="http://search.cpan.org/dist/Devel-UseFromCommandLineOnly/">CPAN</a> and <a href="http://github.com/2shortplanks/devel-usefromcommandlineonly">GitHub</a> if you want to play with it.

@@ -1,0 +1,155 @@
+---
+date: 2009-08-28 09:00:37
+layout: post
+title: The Upper Hand
+---
+When coding I quite often find myself having to setup some state temporarily limited to just the block I'm in and the routines the block calls.
+
+For way of a simple example, imagine we have a password reset utility on our website.  In our example resetting works by sending a user a url with a token in it to email address associated with their account, and then when the user clicks on that url they're sent to a a page where they can send us the token and a new password.
+
+The core of the code to do the actual password resetting might look something like this:
+
+<code><pre>sub reset_password_from_email_token {
+  my $self = shift;
+  my $token = shift;
+  my $password = shift;
+
+  # temporarily disable security checks as this user isn't the one
+  # the session is logged in as
+  $self-&gt;disable_security_checks;
+
+  if (any { $_ eq $token } $self-&gt;recent_reset_tokens) {
+    $self-&gt;set_password($password);
+    $self-&gt;remove_reset_token($token);
+  }
+
+  # turn the checks back on again
+  $self-&gt;enable_security_checks;
+ }</pre></code>
+
+This is fairly reasonable code, but prone to subtle bugs.
+
+What if there's a problem with setting the password?  For example, <code>set_password</code> could have easily been written to raise an exception if the password isn't long enough:
+
+<code><pre>sub set_password {
+  my $self = shift;
+  my $value = shift;
+
+  if (length($value) {value} = $value;
+  return $self;
+}</pre></code>
+
+And it's fairly reasonable for someone therefore to write something like this:
+
+<code><pre>eval {
+  $user-&gt;reset_password_from_email_token($token, $password);
+};
+if ($@) {
+  if ($@ =~ /too short/) {
+    return render_bad_password_page();
+  } else { die $@ }
+}
+return render_password_reset_page();</pre></code>
+
+Have you spotted the problem yet?  Yep, <code>enable_security_checks</code> never got called. <code>render_bad_password_page</code> is running with security off!
+
+What we want is to ensure that security is always turned back on when we exit from <code>reset_password_from_email_token</code> no matter how we do that.
+
+We want something like this psudocode:
+
+<code><pre>sub reset_password_from_email_token {
+  my $self = shift;
+  my $token = shift;
+  my $password = shift;
+
+  # this user isn't the one the session is logged in as
+  ...temporarily disable security checks somehow...
+
+  if (any { $_ eq $token } $self-&gt;recent_reset_tokens) {
+    $self-&gt;set_password($password);
+    $self-&gt;remove_reset_token($token);
+  }
+}</pre></code>
+
+Now how to write that?  One <em>very</em> hacky way of doing it would be to localise a state variable that Perl will automatically restore to the original value as it exits the current scope, i.e. as it exits the subroutine:
+
+<code><pre>sub reset_password_from_email_token {
+  my $self = shift;
+  my $token = shift;
+  my $password = shift;
+
+  # this user isn't the one the session is logged in as
+  local $self-&gt;{security} = 0;
+
+  if (any { $_ eq $token } $self-&gt;recent_reset_tokens) {
+    $self-&gt;set_password($password);
+    $self-&gt;remove_reset_token($token);
+  }
+}</pre></code>
+
+Of course, this has several obvious drawbacks.  Firstly, it requires the <code>reset_password_from_email</code> routine to understand how security works;  If we ever change the security implementation of the module we're going to have to alter this code too.  Heaven help us if we try this approach on a third party module!
+
+Secondly, it assumes that the implementation of security is sufficiently trivial that it can be controlled by a simple variable.  This isn't often the case.  You may have to end up localising a whole collection of variables, or even running complex logic to work out what to do.  Very very messy.
+
+Quite simply, just resetting variables back to their original state isn't powerful enough of a mechanism.  What we actually would like to do is define some <em>code</em> that will be run on the exit of the subroutine.
+
+One way to do that is to use the <a href="http://search.cpan.org/dist/End/lib/End.pm">End</a> module from the CPAN:
+
+<code><pre>use End qw(end);
+
+sub reset_password_from_email_token {
+  my $self = shift;
+  my $token = shift;
+  my $password = shift;
+
+  # this user isn't the one the session is logged in as
+  $self-&gt;disable_security_checks;
+  my $temp = end { $self-&gt;enable_security_checks };
+
+  if (any { $_ eq $token } $self-&gt;recent_reset_tokens) {
+    $self-&gt;set_password($password);
+    $self-&gt;remove_reset_token($token);
+  }
+}</pre></code>
+
+As long as <code>$temp</code> stays in scope nothing happens, but as soon as the subroutine exits and <code>$temp</code> goes out of scope the code we passed in will be executed.
+
+How does that work?  The End module is a way to create an instance that runs some code when it's garbage collected.  In the above example when <code>$temp</code> goes out of scope  its DESTROY method will be called which will in turn call the anonymous subroutine that we passed in which calls <code>enable_security_checks</code>.
+
+Great! We've solved the problem.  We've almost invented a kind of backwards try / catch / finally syntax al-la Java and friends.
+
+The problem with is it still requires me to write code every time I disable security, and therefore think, and therefore have a chance to introduce bugs.  What I really really would like to do is write this:
+
+<code><pre>sub reset_password_from_email_token {
+  my $self = shift;
+  my $token = shift;
+  my $password = shift;
+
+  # this user isn't the one the session is logged in as
+  $self-&gt;temporarily_disable_security_checks;
+
+  if (any { $_ eq $token } $self-&gt;recent_reset_tokens) {
+    $self-&gt;set_password($password);
+    $self-&gt;remove_reset_token($token);
+  }
+}</pre></code>
+
+And it to essentially do the same thing, call <code>disable_security_checks</code> immediately and <code>enable_security_checks</code> at the end of scope.  Is this possible? Yes, with the help of another CPAN module, <a href="http://search.cpan.org/dist/Scope-Upper/lib/Scope/Upper.pm">Scope::Upper</a>:
+
+<code><pre>use Scope::Upper;
+
+sub temporarily_disable_security_checks {
+  my $self = shift;
+  
+  # disable security checks immediately
+  $self-&gt;disable_security_checks;
+  
+  # and when the scope that called us exits, re-enable them
+  reap sub {
+    $self-&gt;enable_security_checks;
+  }, UP;
+}</pre></code>
+
+Whoa! What happened there?  Like <code>end</code>, the <code>reap</code> function exported by Scope::Upper allows us to to define an anonymous subroutine that will be called when a scope exits - but rather than the <em>current</em> scope, we can say when <em>any</em> scope in our call-chain exits.  In this example we're saying "UP", which is a constant exported by Scope::Upper which means "in the scope that called us", i.e. run this code when <code>reset_password_from_email_token</code> exits.
+
+As you can imagine this is a really powerful mechanism that can be used to encapsulate complex logic.  It's useful for all sorts of things from cleanup exercises like I've shown here, to being really helpful in defining new keywords...

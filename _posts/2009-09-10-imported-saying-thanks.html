@@ -1,0 +1,83 @@
+---
+date: 2009-09-10 11:00:57
+layout: post
+title: Saying Thanks
+---
+Did you know that recent releases of perl come with a way to send thanks back to the authors of Perl?  Neither did I until I saw Paul Fenwick speak at YAPC::Europe this year.
+
+Here's what you've got to do.  First, make sure you're running Perl 5.8.9 or 5.10.0 or later.  Then from the command line run the "perlthanks" command with your email address:
+
+<code><pre>bash$ perlthanks -r someone@example.com</pre></code>
+
+This fires up a modified version of the "perlbug" command line tool - a utility for reporting bugs in the perl interpreter itself.  This version is designed:
+
+<code><pre>This program provides an easy way to send a thank-you message
+back to the authors and maintainers of perl.
+
+If you wish to submit a bug report, please run it without the -T
+flag (or run the program perlbug rather than perlthanks)
+
+First of all, please provide a subject for the message.
+Subject:</pre></code>
+
+So we tap in "We think you're totally awesome in every possible way" and hit return.  It takes us onto the next stage:
+
+<code><pre>It's now time to compose your thank-you message.
+
+Some information about your local perl configuration will
+automatically be included at the end of your message, because
+we're curious about the different ways that people build and use
+perl. If you'd rather not share this information, you're welcome
+to delete it.
+
+You will probably want to use a text editor to enter the body of
+your report. If "vi" is the editor you want to use, then just
+press Enter, otherwise type in the name of the editor you would
+like to use.
+
+If you have already composed the body of your report, you may
+enter "file", and /Users/mark/local/bin/perlthanks will prompt
+you to enter the name of the file containing your report.
+
+Editor [vi]: </pre></code>
+
+I can cope with vi quite happily, so I hit return and then it fires up my editor containing the following text:
+
+<code><pre>This is a thank-you report for perl from someone@example.com,
+generated with the help of perlbug 1.39 running under perl 5.10.1.
+
+
+-----------------------------------------------------------------
+[Please enter your thank-you message here]
+
+
+
+[You're welcome to delete anything below this line]
+-----------------------------------------------------------------
+---
+Flags:
+    category=thanks
+    severity=none
+---
+Site configuration information for perl 5.10.1:
+
+Configured by mark at Sun Aug  9 09:11:41 BST 2009.
+
+Summary of my perl5 (revision 5 version 10 subversion 1) configuration:
+...</pre></code>
+
+You can tell this was originally written to collect bug reports, can't you?   Okay, so we fill in the bits between the dashed lines with some message like "You rock my world, oh yeah, oh yeah".  Save the file and quit vi and we see:
+
+<code><pre>You have finished composing your message. At this point, you have 
+a few options. You can:
+
+    * [Se]end the message to perl-thanks@perl.org, 
+    * [D]isplay the message on the screen,
+    * [R]e-edit the message
+    * Display or change the message's [su]bject
+    * Save the message to a [f]ile to mail at another time
+    * [Q]uit without sending a message
+
+Action (Send/Display/Edit/Subject/Save to File): </code></pre>
+
+Typing "se" and hitting return sends the message off to perl-thanks@perl.org.  Whee!

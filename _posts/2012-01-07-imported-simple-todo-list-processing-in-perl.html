@@ -1,0 +1,128 @@
+---
+date: 2012-01-07 19:13:10
+layout: post
+title: Simple Todo List Processing in Perl
+---
+<p>While I normally use OmniFocus as a GTD tool to manage my todo lists, sometimes I want to collaborate on a todo list with someone else and I don’t want them to have to use a complicated and expensive tool. I’ve often found in this situation a simple shared text file is the way to go.  A file on the office fileserver, or in a shared Dropbox folder, in a obvious format that any can understand with a glance.</p>
+
+<p>Here’s what one looks like:</p>
+
+<pre><code>[X] (extract) Complete coding.
+[X] (extract) Get Zefram to code review my code.  
+[X] (yapc) Write talk submission for YAPC::NA
+[X] (yapc) submit talk proposal with ACT
+[ ] (extract) Write Array::Extract::Example document.  
+[ ] (extract) Check in and push to github
+[ ] (extract) Upload to CPAN. 
+[ ] (extract) Publish a blog post about it
+</code></pre>
+
+<p>In the above example two tasks each from the the <code>extract</code> project and the <code>yapc</code> project have been marked as completed.  Periodically I want to move these “done” items to a separate archive list - the done file - so they don’t clutter up my list.  That’s something I’m going to want to automate with Perl.</p>
+
+<p>The way I’ve chosen to write that script is to use  Tie::File, where each element of the array corresponds to a line of the file.</p>
+
+<h2>Alternatives to Grepping</h2>
+
+<p>At first glance removing all the lines from our array that are ticked might seem like a simple use of grep:</p>
+
+<pre><code>tie my @todo, "Tie::File", $filename or die $!;
+@todo = grep { !/\A\[[^ ]]/ } @todo;
+</code></pre>
+
+<p>But that’s throwing away everything that we want to move to the done file. An alternative might be to write a grep with side effects:</p>
+
+<pre><code>tie my @todo, "Tie::File", $filename or die $!;
+open my $done_fh, "&gt;;&gt;;", $done_filename or die $!;
+@todo = grep {
+  !/\A\[[^ ]]/ || do {
+    say { $done_fh } $_;
+  0 } 
+} @todo;
+</code></pre>
+
+<p>But that’s ugly.  The code gets much uglier still if you want a banner preceding the first new entry into the done file saying when the actions were moved there.</p>
+
+<p>What I ended up doing was writing a new module called <a href="http://metacpan.org/module/Array::Extract">Array::Extract</a> which exports a function <code>extract</code> that does exactly what you might expect:</p>
+
+<pre><code>my @done = extract { /\A\[[^ ]]/ } @todo;
+</code></pre>
+
+<p><code>@todo</code> is modified to remove anything that the block returns true for and those elements are placed in <code>@done</code>.</p>
+
+<pre><code>open my $done_fh, "&gt;;&gt;;", $done_filename or die $!;
+my @done = extract { /\A\[[^ ]]/ } @todo;
+print { $done_fh } map { "$_\n" }
+  "","Items archived @{[ DateTime-&gt;;now ]}:","",@done;
+</code></pre>
+
+<h2>Needs more actions</h2>
+
+<p>Of course, if all I wanted to do was remove the actions that had been completed I probably wouldn’t have reached for Tie::File, but for my next trick I’m going to need to insert some extra content at the top of the file once I’m done processing it.</p>
+
+<p>I want to keep track of projects that have had all their remaining actions marked as done and moved to the done file.  For example, I’ve ticked off all the action in the <code>yapc</code> so I need more actions (write slides, book flight, etc, etc.)  I need a list of these “actionless” projects at the top of my todo list so when I glance at it I know there’s some tasks missing.</p>
+
+<p>Essentially after I run my script I want my todo file to look something like this:</p>
+
+<pre><code>yapc needs more actions
+
+[ ] (extract) Write Array::Extract::Example document
+[ ] (extract) Check in and push to github
+[ ] (extract) Upload to CPAN
+[ ] (extract) Publish a blog post about it
+</code></pre>
+
+<p>Here’s the final script that handles that case too:</p>
+
+<pre><code>#!/usr/bin/env perl.  
+
+use 5.012;
+use warnings;
+
+use Path::Class;
+use Tie::File;
+use Array::Extract qw(extract);
+use List::MoreUtils qw(uniq last_index);
+use DateTime;
+
+########################################################################
+
+my $TODO = file($ENV{HOME}, "Dropbox", "SharedFolder", "TODO.txt");
+my $DONE = $TODO-&gt;;dir-&gt;;file("DONE.txt");
+
+########################################################################
+
+# work out what projects are in this array, maintaining order
+sub projects(@) {
+  return uniq grep { defined $_ } map { /^\[.] \(([^)]+)/; $1 } @_;
+}
+
+########################################################################
+
+# tie to the todo list file
+tie my @todo, "Tie::File", $TODO-&gt;;stringify or die $!;
+
+# work out what projects are in the file before we remove anything
+my @projects = projects @todo;
+
+# remove those items that are done.  
+my @done = extract { /\A\[[^ ]]/x } @todo;
+exit unless @done;
+
+# append what has been done to another file
+print { $DONE-&gt;;open("&gt;;&gt;;") or die $! } map { "$_\n" }
+  "",
+  "Items archived @{[ DateTime-&gt;;now ]}:",
+  "",
+  @done;
+
+# work out which projects no longer exist
+my %remaining_project = map { $_ =&gt;; 1 } projects @todo;
+@projects = grep { !$remaining_project{ $_ } } @projects;
+
+# insert this at the section at the top of the file. 
+splice @todo,0,0,map { "$_ needs more actions" } @projects;
+
+# seperate the "needs more actions" out with a newline
+my $break = last_index { /needs more actions\z/ } @todo;
+splice @todo, $break+1, 0, "" if defined $break &amp;&amp; $todo[$break+1] ne "";
+</code></pre>

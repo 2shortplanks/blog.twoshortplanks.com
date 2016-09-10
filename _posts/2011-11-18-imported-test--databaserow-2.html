@@ -1,0 +1,61 @@
+---
+date: 2011-11-18 21:07:22
+layout: post
+title: Test::DatabaseRow 2
+---
+<p>Last week I released an update for one of my older modules, <a href="http://search.cpan.org/~markf/Test-DatabaseRow">Test::DatabaseRow</a>. In the course of this update I completely rewrote the guts of the module, turning the bloated procedural module into a set of clearly defined Moose-like Perl classes.</p>
+
+<h2 id="whyupdatenow">Why update now?</h2>
+
+<p>Test::DatabaseRow had been failing it&#8217;s tests since Perl 5.13.3 (it was another victim of the changing stringification of regular expressions breaking tests.) We&#8217;re currently planning to upgrade our systems at work from 5.12 to 5.14 in the new year, and (embarrassing) one of the key modules that breaks our 5.14 smoke is Test::DatabaseRow. Oooops.</p>
+
+<p>Since I had my editor open, I decided it might be a good idea to switch to a more modern build system. And, since I was doing that, I thought it might be a good idea to fix one of my long standing todos (testing all rows returned from the database not just the first.)</p>
+
+<p>In other words, once I&#8217;d started, I found it hard to stop, and before I knew it I had a reasonably big task on my hands.</p>
+
+<h2 id="thedecisiontorefactor">The decision to refactor</h2>
+
+<p>When I first wrote Test::DatabaseRow back in 2003, like most testing modules of the time, it sported a simple Exporter based interface. The (mostly correct) wisdom was that simple procedural interfaces make it quicker to write tests. I still think that&#8217;s true, but:</p>
+
+<ul>
+<li><p><strong>Procedual programming ends up either with very long functions or excessive argument passing</strong>. The single function interface made the internals of Test::DatbaseRow quite difficult &#8211; to avoid having one giant function call I ended up passing all the arguments a multitude of helper functions and then passing the multiple return values of one function onto the next.</p></li>
+<li><p><strong>Many of the calls you write want to share the same defaults</strong> For example, the database handle to use, if we should be verbose in our output, should we do utf&#8211;8 conversion?&#8230; These are handled reasonably well with package level variables as defaults for arguments not passed to the function (which isn&#8217;t such a big deal in a short test script) but the code to support those within the testing class itself isn&#8217;t particularly clean having to cope with defaults evaluation in multiple places.</p></li>
+<li><p><strong>Only being able to return once from the function is a problem</strong>. Sometimes you might want to get extra data back after the test has completed. For example, when I wanted to allow you to optionally return the data extracted from the database I had to do it by allowing you to pass in the args to <code>row_ok</code> references to variables to be populated as it executes. Again, while this isn&#8217;t the end of the world from an external interface point of view, the effect it has on the internals (passing data up and down the stack) is horrible.</p></li>
+</ul>
+
+<p>For the sake of the internals I wanted things to change. However: I didn&#8217;t want to break the API. I decided to split the module into two halves. An simple external facing module that would provide the procedural interface, and an internal object orientated module that would allow me to produce a cleaner implementation.</p>
+
+<h2 id="nomoosebutsomethingsimilar">No Moose, but something similar</h2>
+
+<p>As I came to create Test::DatabaseRow::Object I found myself really wanting to write this new class with Moose. Now, Moose is a <em>very</em> heavyweight dependency; You don&#8217;t want to have to introduce a dependency on hundreds of modules just because you want to use a simple module to test your code. In fact, Test::DatabaseRow has no non-core dependencies apart from DBI itself, and I wanted to keep it this way with the refactoring. So, no Moose. No Mouse. No Moo. Just me and an editor.</p>
+
+<p>In the end I compromised by deciding to code the module in a Moose &#8220;pull accessor&#8221; style even if I didn&#8217;t have Moose itself to provide the syntax to do this succinctly.</p>
+
+<p>The approach I took was to put most of the logic for Test::DatabaseRow::Object &#8211; anything that potentially changes state of the object &#8211; into lazy loading read only accessors. Doing this allowed me to write my methods in a declarative style, relying entirely on the accessors performing the calculation to populate themselves the first time they&#8217;re accessed. For example. Test::DatabaseRow::Object has a read only accessor called <code>db_results</code> which goes to the database the first time it&#8217;s accessed and executes the SQL that&#8217;s needed to populate it (and the SQL itself comes from <code>sql_and_bind</code> which, unless explicitly stated in the constructor, is populated on first use from the <code>where</code> and <code>table</code> accessors and so on.)</p>
+
+<p>Since I wasn&#8217;t using Moose this produced a lot more code than we&#8217;d normally expect to see, but because I was following a standard Moose conventions it&#8217;s still fairly easy to see what&#8217;s going on (I even went as far to leave a Moose style <code>has</code> accessor declaration in a comment above the blocks of code I had to write to sufficiently convey what I was doing.)</p>
+
+<h2 id="aresultsobject">A results object</h2>
+
+<p>The second big architectural change I made was to stop talking directly to Test::Builder. Instead I changed to returning a results object which was capable of rendering itself out to Test::Builder on demand.</p>
+
+<p>This change made the internals a lot easier to deal with. I was able to break the test up into several functions each returning a success or failure object. As soon I was able to detect failure in any of these functions I could return it to Test::DatabaseRow, but if I got a success - which now hadn&#8217;t been rendered out to Test::Builder yet - I could throw it away and move onto the next potentially failing test while I still had other things to check.</p>
+
+<p>This made implementing my missing feature, the ability to report on all rows returned from the database not just the first one, much easier to implement.</p>
+
+<h2 id="problemsproblemsproblems">Problems, problems, problems</h2>
+
+<p>After all this work, and spending hours improving the test coverage of the module, I still botched the release of 2.00. The old module tested the interface with DBI by checking against a database that was on my old laptop in 2003. Since I no longer had that laptop these tests weren&#8217;t being run (I actually deleted them since they were useless) and hence I didn&#8217;t notice when I&#8217;d broken the interface to DBI in my refactoring.</p>
+
+<p>Ilmari pointed out I was being stupid a few minutes after I&#8217;d uploaded. Within ten minutes I&#8217;d written some DBI tests that test with SQLite (if you have DBD::SQLite installed) and released 2.01.</p>
+
+<p>The biggest surprise was the next day where our overnight Hudson powered smokes failed at work, and the only thing that had changed was Test::DatabaseRow (we re-build our dependencies from the latest from CPAN every night, and it&#8217;d automatically picked up the changes.) Swapping in the old version passed. Putting the new version in failed. Had I missed something else in my testing?</p>
+
+<p>No, I hadn&#8217;t.</p>
+
+<p>After several hours of head scratching I eventually worked out that there was an extra bug in Test::DatabaseRow 1.04 that I&#8217;d not even realised was there, and I&#8217;d fixed it with 2.01. The tests were failing in our smokes but not because I&#8217;d broken the testing infrastructure, but because I&#8217;d <em>fixed it</em> and now I was detecting an actual problem in my Hudson test suite that had previously been unexposed.</p>
+
+<h2 id="whatsnext">What&#8217;s next?</h2>
+
+<p>Oh, I&#8217;m already planning Test::DatabaseRow 2.02. On github I&#8217;ve already closed a feature request that chromatic asked for in 2005. Want another feature? File a bug in RT. I&#8217;ll get to it sooner or later&#8230;</p>
+

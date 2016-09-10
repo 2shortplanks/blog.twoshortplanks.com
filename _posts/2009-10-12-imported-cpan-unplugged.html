@@ -1,0 +1,69 @@
+---
+date: 2009-10-12 09:46:56
+layout: post
+title: CPAN Unplugged
+---
+CPAN is often described as Perl's Killer App;  Modern Perl relies on it, with the perl distribution being almost considered in parts to be nothing more than a bootstrap for the rest of the language that's out there in the cloud.  Which makes it all the more annoying when you're stuck somewhere without an internet connection missing the vital bit of the language you need.  I just had first hand experience of being offline for a two week holiday, but I didn't have this problem when hacking on personal projects: I took CPAN with me.
+
+So, want CPAN at your fingertips even when you're offline?  Yep, you've guessed it: There's a CPAN module for that!
+
+It's called CPAN::Mini, and it lets you create a mini-mirror of CPAN.  A mini-mirror?  What's that?  It's a mirror of just the latest non-development versions of the modules from the CPAN - or in other words, it's a mirror of anything you can install by just typing "install" and just the module name into the cpan shell.  As I type this now this mirror weighs in at about 1.1GB, which is a fair bit smaller than the full archive.
+
+So how do we create a mini-mirror?  Well, first (when you're actually online) you need to install the module.
+
+<code><pre>bash$ sudo cpan Mini::CPAN</pre></code>
+
+Once you've done that the <code>minicpan</code> command will be installed on your computer.
+
+While you can pass arguments on the command line to tell it how to run, it's easier to create a <code>.minicpanrc</code> file in your home directory so you don't have to remember what commands to type each time you want to sync your mirror.  This is what mine looks like:
+
+  local: /cpan/
+  remote: http://www.mirrorservice.org/sites/ftp.funet.fi/pub/languages/perl/CPAN/
+
+So I've got minicpan set up to download from mirrorserver.org (my nearest CPAN mirror on the internet when I'm in the UK) and create files in <code>/cpan</code> on my hard drive.
+
+So all that's left is to run the cpan mirror command and watch it download.
+
+<code><pre>bash$ minicpan</pre></code>
+
+This prints out each file as it downloads.  The first time you run this might take a while (depending on the speed of your internet connection) so you might want to trigger it while you're laptop is going to be in the same place for a while with a fast internet connection (i.e. just before you go to bed or just after you get into the office for the day.)
+
+The second time you run this command it'll update the existing mirror.  This means that it won't have to download the whole 1.1GB again, just the index files and the new modules that have been released.
+
+<code><pre>bash$ minicpan
+authors/01mailrc.txt.gz ... updated
+authors/id/A/AD/ADAMK/Test-POE-Stopping-1.05.tar.gz ... updated
+authors/id/A/AD/ADAMK/CHECKSUMS ... updated
+authors/id/A/AN/ANDK/CPAN-Testers-ParseReport-0.1.4.tar.bz2 ... updated
+authors/id/A/AN/ANDK/CHECKSUMS ... updated
+authors/id/A/AT/ATHOMASON/Ganglia-Gmetric-PP-1.01.tar.gz ... updated
+authors/id/A/AT/ATHOMASON/CHECKSUMS ... updated
+authors/id/A/AT/ATHOMASON/Gearman-WorkerSpawner-1.03.tar.gz ... updated
+...
+cleaning /cpan/authors/id/A/AA/AAYARS/Fractal-Noisemaker-0.011.tar.gz ...done
+cleaning /cpan/authors/id/A/AD/ADAMK/Test-POE-Stopping-1.04.tar.gz ...done
+cleaning /cpan/authors/id/A/AL/ALEXLOMAS/CHECKSUMS ...done
+cleaning /cpan/authors/id/A/AL/ALEXLOMAS/WWW-Nike-NikePlus-0.02.tar.gz ...done
+...</code></pre>
+
+The module will also delete any old versions of modules that are no longer in the index;  In the above example you can see Adam released a new version of Test::POE::Stopping, so CPAN::Mini downloaded the new distribution and deleted the old distribution (as no modules contained in the index still relied on that distribution).  This keeps the size of the local mirror as small as possible on disk.
+
+There's several ways you can configure the CPAN module to use this new local mirror, including typing commands in the CPAN shell.  However, my preferred way is to directly edit the CPAN::Config module on the system directly.
+
+First work out where the module containing your config is installed:
+
+<pre><code>bash$ perl -E 'use CPAN::Config; say $INC{"CPAN/Config.pm"}'
+/System/Library/Perl/5.10.0/CPAN/Config.pm</code></pre>
+
+Then edit it changing the urllist parameter to contain your CPAN mirror in addition to your normal remote mirror:
+
+<pre><code>'urllist' =&gt; [
+  q[file:///cpan/],
+  q[http://www.mirrorservice.org/sites/ftp.funet.fi/pub/languages/perl/CPAN/]
+],</pre></code>
+
+This means your CPAN shell will try and install files from disk first, and if for any reason that fails (for example, you tell it to install a development release) it'll go to the second mirror.
+
+Which way round you order the mirrors depends really on how often you update your cpan mirror and personal preference.  If you, as I do, put your local mirror first this has the disadvantage that CPAN will seem "frozen" at the last time you ran minicpan, with any new changes being hidden from you until you next update.  It however means that installs are very quick compared to normal internet installs (be you offline or not) and it avoids having to wait for the internet connection timeout every time CPAN tries to fetch a file and fallback to the local mirror when you're offline.
+
+With all this done, I can now install modules in the usual way with the CPAN shell no matter if I have an internet connection or not.  Of course, I haven't yet explained how I work out what modules I should be using when I'm offline and haven't got access to search.cpan.org.  I'll get to that in a future blog post...

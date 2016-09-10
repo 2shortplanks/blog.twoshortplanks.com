@@ -1,0 +1,106 @@
+---
+date: 2009-11-23 22:53:41
+layout: post
+title: RationalizeNamespacePrefixes
+---
+Today I'm going to talk about parsing documents that use XML Namespaces with XML::Easy.  While XML::Easy doesn't (by design) ship with its own XML Namespace aware parser, one of my modules XML::Easy::Transform::RationalizeNamespacePrefixes makes parsing documents that use namespaces a doddle with just one simple function call.
+
+<h2>The problems namespaces solve and cause</h2>
+
+XML Namespaces is an <i>extension</i> of the XML 1.0 specification that allows multiple standards to cooperate so they don't use the same names for their nodes, meaning it's possible to use more than one specification in the <i>same</i> document at the same time without conflict.  For example here's an XML document that uses two different made up specs at the same time to describe a pub lunch that uses the tag "chips" to mean two different things:
+
+<pre><code>&lt;order
+  xmlns:prepackaged=&quot;http://twoshortplanks.com/ns/example/behindthebar&quot; 
+  xmlns:grub=&quot;http://twoshortplanks.com/ns/example/food&quot;&gt;
+  &lt;grub:meal &gt;
+    &lt;grub:beefburger/&gt;
+    &lt;grub:chips/&gt;
+  &lt;/grub:meal&gt;
+  &lt;prepackaged:chips type=&quot;Pringles&quot; /&gt;
+&lt;/order&gt;</code></pre>
+
+So the way the XML Namespace specification works is by using a convention of naming nodes starting with an extra prefix.  This allow you to use what otherwise would be the same named in the same document to have a different <i>schematic meaning</i>.  For example the "chips" nodes are written as "prepackaged:chips" when they're referring to crisps, and "grub:chips" when they're referring to a fries.  The clever bit of XML Namespaces is that doesn't matter what prefix you use to differentiate the two from each other, but what namespace URLs they map to.  For example, this document here is considered to be essentially identical to the previous example as far as a namespace aware XML parser is concerned:
+
+<pre><code>&lt;order&gt;
+  &lt;meal xmlns=&quot;http://twoshortplanks.com/ns/example/food&quot;&gt;
+    &lt;beefburger/&gt;
+    &lt;chips/&gt;
+  &lt;/meal&gt;
+  &lt;barsnack:chips xmlns:barsnack=&quot;http://twoshortplanks.com/ns/example/behindthebar&quot; type=&quot;Pringles&quot; /&gt;
+&lt;/order&gt;</pre></code>
+
+The meaning of the prefix is entirely derived from the presence of the <code>xmlns</code> prefixed attributes on the node or on the parent node mapping the prefix to a URL<a href="#point1">¹</a>.  This both is great and a complete nightmare: Great since you're mapping an arbitrary prefix to a the unique namespace URL you're not going to get conflicts with other specifications (the way you would if each specification defined its own prefix.)  And a complete nightmare because you don't know what the thing you're looking for is actually called - either your code, or the parser, has to keep track of what namespaces are declared in the current scope and what prefixes map to what namespaces.
+
+<h2>Using XML::Easy::Transform::RationalizeNamespacePrefixes</h2>
+
+What would be great is if there was some way you could force everyone who gives you a document to use the prefixes you'd like, and then you'd know what they'd be called and instead of having to worry about all these xmlns:whatever attributes in the document (and what nodes were where in the tree in relation to them.)  Then you could just look for all the "beverage:larger" nodes. 
+
+Well, we can't force other people to do what we want, but what we can do is make use of the fact that the prefixes are arbitrary and the same document with any prefix means the same thing.  We can therefore just rewrite whatever document we're given into a form we'd like to deal with before we process it.  This is the task XML::Easy::Transform::RationalizeNamespacesPrefixes was designed for - it rationalises the prefixes of the namespaces to whatever you want.  For example, forcing using "drink" and "modifier" prefixes for the namespaces:
+
+<pre><code>my $old_doc = xml10_read_document($string_of_xml);
+my $new_doc = rationalize_namespace_prefixes($old_doc, {
+  namespaces =&gt; {
+    &quot;http://twoshortplanks.com/ns/example/food&quot; =&gt; &quot;kitchen&quot;,
+    &quot;http://twoshortplanks.com/ns/example/behindthebar&quot; =&gt; &quot;barstaff&quot;,
+  },
+  force_attribute_prefix =&gt; 1,
+})</code></pre>
+
+Now if you feed <i>either</i> of the above documents to the code, you'll have an in memory representation of the following document:
+
+<pre><code>&lt;order
+  xmlns:barstaff=&quot;http://twoshortplanks.com/ns/example/behindthebar&quot; 
+  xmlns:kitchen=&quot;http://twoshortplanks.com/ns/example/food&quot;&gt;
+  &lt;kitchen:meal &gt;
+    &lt;kitchen:beefburger/&gt;
+    &lt;kitchen:chips/&gt;
+  &lt;/kitchen:meal&gt;
+  &lt;barstaff:chips barstaff:type=&quot;Pringles&quot; /&gt;
+&lt;/order&gt;</pre></code>
+
+Several important transformations have happened:
+
+<ul>
+  <li>It used the namespace/prefixe mapping that we passed into it with <code>namespaces</code> to rename all the corresponding nodes in the document to have the whatever prefixes we want.  This means we now know without looking at the xmlns attributes what our nodes will be called.</p>
+ <li>All the namespaces have been moved to the top element of the document.  In this example the module didn't need to introduce any further prefixes to do this (which can happen if the same prefix is used to refer to different URLs in different parts of the tree) nor condense prefixes to a single prefix per namespace (which happens if multiple prefixes refer to the same URL) but if it had to do that, it would have.  This means it's really easy to find other namespaces that are defined in our document - you just look for xmlns attributes at the top element.</li>
+ <li>The <code>force_attribute_prefix</code> option forces prefixes to be attached to attribute names too</li>
+</ul>
+
+Now we can parse the document <i>without worrying about the namespaces at all</i>.  If we want to look for all the packets of preprepared food in the document:
+
+<pre><code>use XML::Easy::Text qw(xml10_read_document);
+use XML::Easy::Classify qw(is_xml_element);
+use XML::Easy::NodeBasics qw(xe_twine);
+use XML::Easy::Transform::RationalizeNamespacePrefixes qw(rationalize_namespace_prefixes);
+
+sub packets {
+  my $element = shift;
+  return unless is_xml_element($element);
+  my @return;
+  push @return, $element-&gt;attribute("barstaff:type") if $element-&gt;type_name eq "barstaff:chips";
+  push @return, map { packets($_) } @{ xe_twine($element) };
+  return @return;
+}
+
+say "We need the following packets:";
+say " * $_" for packets(
+  rationalize_namespace_prefixes(
+    xml10_read_document($string_of_xml), {
+      namespaces =&gt; {
+        "http://twoshortplanks.com/ns/example/behindthebar" =&gt; "barstaff",
+      },
+      force_attribute_prefix =&gt; 1,
+    }
+  )
+);</pre></code>
+
+There's more information on '<a href="http://search.cpan.org/dist/XML-Easy-Transform-RationalizeNamespacePrefix">XML::Easy::Transform::RationalizeNamespacePrefix's search.cpan.org page</a><a href="#point2">²</a>.
+
+And that concludes my mini-series into looking into XML::Easy.  I'm sure to write more about it in the future as more interesting uses and extensions are written for it, but in my next entry I'll be taking a break from the pointy brackets!
+
+<hr>
+
+<a name="point1"></a>[1] I've used the term URL mutliple times in this document when I should have really used URI.  We're using the http:// thingy wosit to Identify a Unique Reference, so it should be a URI, rather an a Universal Resorce Location because there's no resource to locate at that address.  It's just a unique name.
+
+<a name="point2"></a>[2]Please note that this blog was originally posted close in time to when the new version of XML::Easy::Transform::RationalizeNamespacePrefixes was uploaded to the CPAN, so not all features described in this post may have reached your local CPAN mirror if you're reading it "hot off the presses".
+

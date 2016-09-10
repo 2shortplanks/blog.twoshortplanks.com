@@ -1,0 +1,55 @@
+---
+date: 2011-01-14 18:53:48
+layout: post
+title: Indirect Method Calls Must die();
+---
+In this blog post I'll talk about the problems that I have with Perl's indirect method call syntax, both stylistically and pragmatically, and what you can do to prohibit its use.
+
+<h2>Pop Quiz, Hotshot</h2>
+
+What does the following Perl code do?
+
+<pre>save $myobject;</pre>
+
+Is it:
+
+<ul>
+  <li>A <em>function call</em> to the <code>save</code> function, passing <code>$myobject</code> as the argument, i.e. the same as
+<pre>save($myobject)</pre></li>
+  <li>An <em>indirect method call</em>, calling the <code>save</code> method on <code>$myobject</code>, i.e. the same as
+<pre>$myobject-&gt;save()</pre></li>
+</ul>
+
+The answer is complicated.  It depends entirely if a function called <code>save</code> is in scope (either declared above or imported from another module with a use statement) when Perl is compiling the code, in which case it'll be the former rather than the latter.
+
+Does anyone else find this confusing?  I know I sure do.
+
+<h2>Just say no</h2>
+
+At work we have a simple rule:  You're not allowed to write code that uses indirect method calls.  If you want to make a method call, our house coding style demands you write it explicitly using the normal direct method call.  That way if you see the above code you <em>know</em> that it's a function call.
+
+The problem is that it's still entirely possible to use the indirect method call completely accidentally when you intended it to be a function call.  Imagine that you've written the code and forgotten to <code>use ObjectSaver qw(save);</code> at the top of your module and import the <code>save()</code> function.  Perl will blindly go ahead an compile your code as an indirect method call on <code>$myobject</code>!
+
+The real issue with this is that this won't result in an error straight away - the problem will only come to light when the code is actually executed and the non-existent <code>save()</code> method is called (or worse, <code>$myobject</code> really might have a <code>save()</code> method that you didn't mean to call..)  If the code you're writing is one of those hard-to-reach and therefore hard-to-test codepaths (e.g. obscure error handling) there's a chance you could ship broken code to live without noticing it.
+
+<h2>A Solution: The no indirect pragma</h2>
+
+The solution is to use <a href="http://search.cpan.org/dist/indirect/lib/indirect.pm">the indirect pragma from the CPAN</a>.  This pragma allows you to get perl to throw an exception whenever it encounters something it would normally compile into an indirect method call straight away.
+
+Getting it to do its thing is simple:
+
+<pre>no indirect ':fatal';</pre>
+
+And that's it.  Now:
+
+<pre>bash$ perl
+use strict;
+use warnings;
+no indirect ':fatal';
+
+my $myobject = bless {}, "SomeClass";
+save $myobject;
+Indirect call of method "save" on object "$myobject" at - line 6.
+bash$</pre>
+
+Hooray!

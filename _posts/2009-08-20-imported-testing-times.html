@@ -1,0 +1,30 @@
+---
+date: 2009-08-20 18:00:29
+layout: post
+title: Testing times
+---
+One of my all time favourite things about the CPAN and Perl is that we ship test suites with our distributions that are run before installation.  This means that we can be darn sure that not only does the code run on the developer's machine, but it also runs on the end user's machine correctly too - otherwise, it won't be installed.
+
+This obviously puts quite a burden on the developer to ensure that his or her code functions correctly if the test pass (this is what utilities like Test::Coverage help with.)  I'd like to make a second point however:  It puts a burden on the developer to ensure that if the tests pass if the code functions correctly.
+
+For example, one thing that people do (myself included) is insist that their code is documented correctly by installing a test in their test suite that runs Test::Pod and Test::Pod::Coverage.  These test suites will fail if the documentation isn't in valid pod format, or you haven't documented a method, respectively.
+
+But hang on a minute, what if it's not?  Sure, the tests should fail on the developer system, and fail hard: You've got more work to do.  Should your code now be uninstallable by end users?  Does your code no longer work on the end user's machine?  Arguably yes, but at the same time arguably no.  This kind of failure is a kind of "soft failure" that is often caused by differing test infrastructure on the developer and user machines, not by the previously passing pod somehow mutating after your bundled your machine.
+
+I try and avoid these problems by disabling my pod checks unless someone has either explicitly asked for pod checking to be run by setting the POD_TESTS environment variable.
+
+Here's my standard 001pod.t file:
+<pre><code>#!perl
+############## STANDARD Test::Pod TEST - DO NOT EDIT ####################
+use strict;
+use Test::More;
+unless ($ENV{POD_TESTS} || $ENV{PERL_AUTHOR} || $ENV{THIS_IS_MARKF_YOU_BETCHA}) {
+    Test::More::plan(
+        skip_all =&gt; "Test::Pod tests not enabled (set POD_TESTS or PERL_AUTHOR env var)"
+    );
+}
+
+eval "use Test::Pod 1.14";
+plan skip_all =&gt; "Test::Pod 1.14 required for testing POD" if $@;
+all_pod_files_ok();</code></pre>
+I also provide support for the PERL_AUTHOR environment variable which patchers can turn on while their patching my code and documentation (but keep off while installing modules from CPAN.)  And because I'm really lazy I also put a test for the environment variable THIS_IS_MARKF_YOU_BETCHA in my code that is always enabled in my .bashrc on my development machine, meaning I don't have to remember to turn these tests on for my own modules.

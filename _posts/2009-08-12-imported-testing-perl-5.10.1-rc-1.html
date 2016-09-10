@@ -1,0 +1,60 @@
+---
+date: 2009-08-12 13:36:52
+layout: post
+title: Testing Perl 5.10.1 RC 1
+---
+<strong>UPDATE: Since this blog post was written, this got a lot easier with perlbrew.  I wrote about this <a href="http://blog.twoshortplanks.com/2011/01/01/perlbrew/">here</a></strong>
+
+There's a new stable release of perl in the works - Perl 5.10.1 - that's reached "Release Candidate" stage.  In other words, we've got a shiny new version of the perl interpreter and associated core Perl modules that the pumpking (the person in charge of the release) thinks is ready, but he wants us to all test it on our systems with our code to make sure that there's no problems he can't spot himself before it's finally released.
+
+So how do we do that?  Well, we can follow <a href="http://gugod.org/2009/08/install-perl-to-home.html">gugod's instructions</a> to build a version in our home directory.  Below is what I did for my system (a Mac OS X 10.5 box, with the developer tools already installed from the CD that shipped with the computer) 
+
+First we download and extract the distribution:
+
+<code><pre>bash$ wget http://search.cpan.org/CPAN/authors/id/D/DA/DAPM/perl-5.10.1-RC1.tar.gz
+bash$ gunzip -c perl-5.10.1-RC1.tar.gz | tar -xvf -
+bash$ cd perl-5.10.1-RC1</pre></code>
+
+Then we then configure it.  
+
+<code><pre>bash$ Configure -de -Dprefix=${HOME}/local</pre></code>
+
+<code>-de</code> means "Accept the defaults" and "Go on accepting the defaults".  <code>-Dprefix</code> tells the installer where to install - in this case in "local" in our home directory where it won't interfere with the system Perl.
+
+We then can tell it to build, test, and install itself.
+
+<code><pre>bash$ make
+bash$ make test
+bash$ make install
+</pre></code>
+
+This all will take some time.  Either go make a cup of tea, or just get on with something else.
+
+Whenever I want to test the new version of Perl I can use the <code>export</code> command to modify my path to put this new perl first.
+
+<code><pre>bash$ export PATH=${HOME}/local/bin:${PATH}</pre></code>
+
+This means that when I type <code>perl</code> from my shell (or use any of the other perl utilities in this shell) from that point on it'll run the version of perl I'm testing rather than the system perl that came with my Mac.
+
+<code><pre>bash$ perl -v
+
+This is perl, v5.10.1 (*) built for darwin-2level
+(with 1 registered patch, see perl -V for more detail)
+
+Copyright 1987-2009, Larry Wall
+
+Perl may be copied only under the terms of either the Artistic License or the
+GNU General Public License, which may be found in the Perl 5 source kit.
+
+Complete documentation for Perl, including FAQ lists, should be found on
+this system using "man perl" or "perldoc perl".  If you have access to the
+Internet, point your browser at http://www.perl.org/, the Perl Home Page.
+</pre></code>
+
+We can now start installing modules from the CPAN in order to test out our new perl.  I must admit that I jumped straight for the big guns: <a href="http://search.cpan.org/dist/Task-Kensho/">Task::Kensho</a>.
+
+"Tasks" are psudo-packages that you find on the CPAN that don't really contain any code of their own, but just provide documentation and depend on a bunch of other modules.  They're a common way to load a collection of modules.  Task::Kensho is one of the big ones here - it's a large-ish collection of modules that are commonly used by modern Perl programmers, and installing it basically will tell cpan to install all the modules that I need to get up and running and start being productive.
+
+It took me about an hour to install all of these modules from a local on disk cpan mirror I had previously created with <a href="http://search.cpan.org/dist/CPAN-Mini/">minicpan</a>, but quite a lot of that was delays caused by me configuring my cpan shell to prompt me before doing anything (because I wanted to keep track of what it was doing, as I was testing the new release candidate.)
+
+All in all it was a fairly painless experience.  I look forward to the release proper of 5.10.1 in the near future!

@@ -1,0 +1,14 @@
+---
+date: 2009-09-28 09:34:52
+layout: post
+title: meta META update
+---
+I'm on holiday in the states at the moment, so I haven't had much chance to do much Perl stuff.  That said, I did take a chance to add proposals for the new META.yml spec.
+
+For those of you that don't know, META.yml is a small file that ships in modern CPAN distributions that contains, well, meta information.  It's a way to know things about the distribution like author, pre-requisits, etc, etc, without actually having to examine or even execute other files in the distribution.  A lot of the more fancy automated tools that do really clever things with CPAN distibutions rely on it.
+
+I added two suggestions.  The first suggestion was a way to provide more detailed information on the repository (a.k.a. the version control system) the original source for the module was stored in.  Currently we support a simple URL, but it's not clear if this is the URL for the web front end or the version control resource itself, nor how to go from one to the other.  I'd also like a format ("git", "svn", "cvs") and type ("github", "sourceforge") so automated tools don't have to derive things they can do from the URL alone.  I'm imaginging a tool where I can type in a module name and it'll do the right thing to get me to a stage where I can immediatley start working on a patch (e.g. forking the project and checking out the fork if it's on github, svn co-ing the project if its a subversion mirror, etc)
+
+The second proposal was the more straight forward.  I suggested that we provide an official way for inhouse extensions to META.yml for private use that won't get stomped on by future versions of the spec and won't get complained about by tools the use META.yml: Simply reserving the 'x-' prefix to keys much like in HTTP headers.
+
+You can view my full proposals (or submit your own proposals before the 1st of October) on the <a href="http://perl-qa.hexten.net/wiki/index.php/CPAN_Meta_Spec_Proposals">CPAN Meta Spec Proposals page</a> on the Perl QA wiki.

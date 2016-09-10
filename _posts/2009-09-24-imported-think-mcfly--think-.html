@@ -1,0 +1,40 @@
+---
+date: 2009-09-24 18:00:58
+layout: post
+title: 'Think McFly, Think!'
+---
+This week I made a time machine with Perl.
+
+So, writing tests for testing anything that happens with the passage of time is very very hard to do as you don't know how long any operation might actually take on the computer you're testing on.  Code may take different time to run on different machines.  Sleep instructions may take longer on busy machines than on non-busy machines.  The user might suspend the computer in the middle of your test suite!
+
+Multiple this across the large number and diverse set of computers that might run your test suite after you upload your module to the CPAN and you're in a situation where you're going to get some false negatives, where the test suite will fail even though nothing's really wrong.  Telling your end users to "try it again, it'l probably work this time" isn't exactly a recipe for instilling confidence in your code.
+
+That's why I developer my trusty time machine.  Test::Time::HiRes is what I call it, and it allows me fine grained control over passage of a certain type of time - the time that Test::HiRes reports back to modules using it.
+
+The easiest way to think of it is an alternative implementation of Time::HiRes where time only progresses time when you (or the code you're testing) tells it to.  This means that all sleeps your code does take an instant of wallclock seconds, but the simulated clock moves automatically.  As such this code runs in milliseconds, rather than hours:
+
+<code><pre>use Test::Time::HiRes;  
+use Time::HiRes qw(sleep);
+sleep(3600 * 10);</pre></code>
+
+We can also jump around in time however we want.
+
+<code><pre>use Test::More tests =&gt; 2;
+use Test::Time::HiRes;
+
+# Time::Hash::Expire uses Time::HiRes to get it's timing
+use Tie::Hash::Expire;
+tie my %hash, "Tie::Hash::Expire", { expire_seconds =&gt; 10 };
+$hash{"foo"} = 1;
+
+ok($hash{"foo"}, "key not expired");
+time_travel_by(3600);
+ok(!$hash{"foo"}, "key expired");</pre></code>
+
+(or back in time, or to particular points in time.)  We have complete control!
+
+Of course, I'm not the first person to come up with this idea.  The very fine Test::MockTime does the same thing for Perl's inbuilt <code>time()</code>,<code>localtime()</code>, and <code>gmtime()</code> functions.  I'm just extending the concept for more accurate time.
+
+It's not quite a DeLorean, but it'll do me.
+
+The module is on <a href="http://search.cpan.org/dist/Test-Time-HiRes">the CPAN</a> and on <a href="http://github.com/2shortplanks/test-time-hires">github</a>.  [Update: as of 2009-09-24 20:15:39 UTC, the module still hasn't reached search.cpan.org yet - I'll leave the link in place for when it does, but if you're impatient, head off to github]

@@ -1,0 +1,97 @@
+---
+date: 2011-12-02 10:13:31
+layout: post
+title: ''
+---
+<p>As part of my <a href="http://www.pimpyourmacwithperl.com/">Pimp Your Mac With Perl Talk</a> at the <a href="http://conferences.yapceurope.org/lpw2011/">London Perl Workshop</a> I talked very briefly about one of my newer Perl modules that I haven&#8217;t blogged about before: <a href="http://metacpan.org/module/Mac::Safari::JavaScript">Mac::Safari::JavaScript</a>. This module allows you to execute JavaScript inside your browser from within a Perl program and it <strong>just work</strong>.</p>
+
+<h2 id="thepowerofjust">The Power of Just</h2>
+
+<p>Piers Cawley gave a lightning talk at YAPC::Europe::2001 about <em>just</em> in which he explained the power of interfaces that <em>just</em> do what you need whenever you need them to and hide a bunch of complexity behind themselves.</p>
+
+<p>To run JavaScript in Safari you <strong>just</strong> call <code>safari_js</code> with the JavaScript you want to execute:</p>
+
+<pre><code>use Mac::Safari::JavaScript qw(safari_js);
+safari_js('alert(&quot;Hello World&quot;);');
+</code></pre>
+
+<p>This JavaScript is then executed in the current tab of the frontmost Safari window. If you want to return a datascructure to Perl from your JavaScript then you <strong>just</strong> do so:</p>
+
+<pre><code>my $page_title = safari_js(&quot;return document.title;&quot;);
+</code></pre>
+
+<p>No matter how complex<a href="1" id="fnref:1" title="see footnote" class="footnote">[1]</a>: it is:</p>
+
+<pre><code>my $details = safari_js(&lt;&lt;'ENDOFJAVASCRIPT');
+  return {
+    title: document.title,
+    who: jQuery('#assignedto').next().text(),
+  };
+ENDOFJAVASCRIPT
+</code></pre>
+
+<p>If you want to have variables avalible to you in your JavaScript then you <strong>just</strong> pass them in:</p>
+
+<pre><code>my $sum = safari_js(&quot;return a+b;&quot;,{ a =&gt; 1, b =&gt; 2 });
+</code></pre>
+
+<p>No matter how complex<a href="2" id="fnref:2" title="see footnote" class="footnote">[2]</a> they are:</p>
+
+<pre><code>use Config;
+safari_js(&quot;alert(config['version']);&quot;,{config =&gt; \%Config})
+</code></pre>
+
+<p>And if you throw an exception in JavaScript, then you <strong>just</strong> catch it the normal way:</p>
+
+<pre><code>use Try::Tiny;
+try {
+  safari_js(&quot;throw 'bang';&quot;);
+} catch {
+  print &quot;Exception '$_' thrown from within JavaScript&quot;;
+};
+</code></pre>
+
+<h2 id="peakingunderthehood">Peaking Under the Hood</h2>
+
+<p>So, how, does this all hang together? Well, it turns out that running JavaScript in your browser from AppleScript isn&#8217;t that hard:</p>
+
+<pre><code>tell application &quot;Safari&quot;
+  do JavaScript &quot;alert('hello world');&quot; in document 1
+end tell
+</code></pre>
+
+<p>And running AppleScript from within Perl isn&#8217;t that hard either:</p>
+
+<pre><code>use Mac::AppleScript qw(RunAppleScript);
+RunAppleScript($applescript);
+</code></pre>
+
+<p>So it&#8217;s a simple problem, right? Just nest the two inside each other. Er, no, it&#8217;s not <em>just</em> that simple.</p>
+
+<p>It turns out that handling the edge cases is actually quite hard. Typical problems that come up that Mac::Safari::JavaScript <strong>just</strong> deals with you for are:</p>
+
+<ul>
+<li>How do we encode data structures that we pass to and from JavaScript?</li>
+<li>How do we escape the strings we pass to and from AppleScript?</li>
+<li>For that matter how do we encode the program itself so it doesn&#8217;t break?</li>
+<li>What happens if the user supplies invalid JavaScript?</li>
+<li>How do we get exceptions to propogate properly?</li>
+<li>With all this thunking between layers, how do we get the line numbers to match up in our exceptions?</li>
+</ul>
+
+<p>And that&#8217;s the power of a module that handles the <strong>just</strong> for you. Rather than writing a few lines of code to get the job done, you can now <strong>just</strong> write one <em>and</em> have that one line handle all the weird edge cases for you.</p>
+
+<div class="footnotes">
+<hr />
+<ol>
+
+<li id="fn:1">
+<p>Okay, so there are some limits. Anything that can be represented by JSON can be returned, but anything that can&#8217;t, can&#8217;t. This means you can&#8217;t return circular data structures and you can&#8217;t return DOM elements. But that would be crazy; <strong>Just</strong> don&#8217;t do that. <a href="1" title="return to article" class="reversefootnote">&#160;&#8617;</a></p>
+</li>
+
+<li id="fn:2">
+<p>Likewise we can only pass into JavaScript something that can be represented as JSON. No circular data strucutres. No weird Perl not-really-data things such as objects, filehandles, code refences, etc. <a href="2" title="return to article" class="reversefootnote">&#160;&#8617;</a></p>
+</li>
+
+</ol>
+</div>
