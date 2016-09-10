@@ -19,10 +19,14 @@ foreach my $post ($dom->findnodes('/rss/channel/item')) {
     my $raw_title = $post->findvalue('./title');
     my $raw_date = $post->findvalue('./wp:post_date');
 
+    my $perm = $post->findvalue('./link');
+    $perm =~ s/https?:..twoshortplanks.wordpress.com//;
+
     my $header = {
         layout => 'post',
         title => $raw_title,
         date => $raw_date,
+        permalink => $perm,
     };
 
     my $output;

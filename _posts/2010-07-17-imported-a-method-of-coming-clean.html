@@ -1,6 +1,7 @@
 ---
 date: 2010-07-17 07:06:57
 layout: post
+permalink: /2010/07/17/clea/
 title: A Method of Coming Clean
 ---
 Since Perl has no inbuilt way of declaring if a subroutine is a function or a method, it's perfectly possible to mistakenly override a superclass method with an errant function import or accidentally call a function as a method call from outside the class it was declared in, violating encapsulation.  This is particularly problematic with generically named utility functions (or "language extensions") that are imported into your module's namespace from other modules.  In this blog entry I'm going to talk about what can be done to prevent this, and introduce you to the namespace::clean module that can automate this process.
